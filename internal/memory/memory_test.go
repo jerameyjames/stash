@@ -39,7 +39,7 @@ func TestRemember_EmptyContent(t *testing.T) {
 	}
 	defer mem.Close()
 
-	_, err = mem.Remember(context.Background(), "", nil)
+	_, err = mem.Remember(context.Background(), "test-ns", "", nil)
 	if !errors.Is(err, ErrEmptyContent) {
 		t.Errorf("expected ErrEmptyContent, got %v", err)
 	}
@@ -55,7 +55,7 @@ func TestRemember_InvalidMetadata(t *testing.T) {
 	}
 	defer mem.Close()
 
-	_, err = mem.Remember(context.Background(), "content", map[string]any{
+	_, err = mem.Remember(context.Background(), "test-ns", "content", map[string]any{
 		"_memory.key": "value",
 	})
 	if !errors.Is(err, ErrInvalidMetadata) {
@@ -74,7 +74,7 @@ func TestRemember_StoresEvent(t *testing.T) {
 	defer mem.Close()
 
 	ctx := context.Background()
-	eventID, err := mem.Remember(ctx, "user asked about the weather", map[string]any{
+	eventID, err := mem.Remember(ctx, "test-ns", "user asked about the weather", map[string]any{
 		"session": "abc123",
 	})
 	if err != nil {
@@ -117,7 +117,7 @@ func TestRemember_EmbedderError(t *testing.T) {
 	}
 	defer mem.Close()
 
-	_, err = mem.Remember(context.Background(), "content", nil)
+	_, err = mem.Remember(context.Background(), "test-ns", "content", nil)
 	if err == nil {
 		t.Error("expected error from embedder")
 	}
@@ -139,7 +139,7 @@ func TestRemember_StoreError(t *testing.T) {
 		embedder: mem.embedder,
 	}
 
-	_, err = mem.Remember(ctx, "content", nil)
+	_, err = mem.Remember(ctx, "test-ns", "content", nil)
 	if err == nil {
 		t.Error("expected error from store")
 	}
@@ -156,7 +156,7 @@ func TestRecall_EmptyOnNoEvents(t *testing.T) {
 	defer mem.Close()
 
 	ctx := context.Background()
-	events, err := mem.Recall(ctx, "weather", 5)
+	events, err := mem.Recall(ctx, []string{"test-ns"}, "weather", 5)
 	if err != nil {
 		t.Fatalf("Recall failed: %v", err)
 	}
@@ -178,13 +178,13 @@ func TestRecall_ReturnsAtMostLimit(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 10; i++ {
-		_, err := mem.Remember(ctx, "event content", nil)
+		_, err := mem.Remember(ctx, "test-ns", "event content", nil)
 		if err != nil {
 			t.Fatalf("Remember failed: %v", err)
 		}
 	}
 
-	events, err := mem.Recall(ctx, "event", 3)
+	events, err := mem.Recall(ctx, []string{"test-ns"}, "event", 3)
 	if err != nil {
 		t.Fatalf("Recall failed: %v", err)
 	}
@@ -203,12 +203,12 @@ func TestRecall_InvalidLimit(t *testing.T) {
 	}
 	defer mem.Close()
 
-	_, err = mem.Recall(context.Background(), "query", 0)
+	_, err = mem.Recall(context.Background(), []string{"test-ns"}, "query", 0)
 	if !errors.Is(err, ErrInvalidLimit) {
 		t.Errorf("expected ErrInvalidLimit for limit=0, got %v", err)
 	}
 
-	_, err = mem.Recall(context.Background(), "query", -1)
+	_, err = mem.Recall(context.Background(), []string{"test-ns"}, "query", -1)
 	if !errors.Is(err, ErrInvalidLimit) {
 		t.Errorf("expected ErrInvalidLimit for limit=-1, got %v", err)
 	}
@@ -225,14 +225,14 @@ func TestRecall_ReturnsCorrectFields(t *testing.T) {
 	defer mem.Close()
 
 	ctx := context.Background()
-	eventID, err := mem.Remember(ctx, "test content", map[string]any{
+	eventID, err := mem.Remember(ctx, "test-ns", "test content", map[string]any{
 		"session": "test-session",
 	})
 	if err != nil {
 		t.Fatalf("Remember failed: %v", err)
 	}
 
-	events, err := mem.Recall(ctx, "test", 1)
+	events, err := mem.Recall(ctx, []string{"test-ns"}, "test", 1)
 	if err != nil {
 		t.Fatalf("Recall failed: %v", err)
 	}
@@ -266,12 +266,12 @@ func TestWorkingMemory_CreatesNewWorkingMemory(t *testing.T) {
 	defer mem.Close()
 
 	ctx := context.Background()
-	wm, err := mem.WorkingMemory(ctx, "weather conversation")
+	wm, err := mem.WorkingMemory(ctx, "test-ns", "weather conversation")
 	if err != nil {
 		t.Fatalf("WorkingMemory failed: %v", err)
 	}
 
-	if wm.ID != "_memory.context" {
+	if wm.ID != "test-ns:_memory.context" {
 		t.Errorf("expected working memory ID, got %s", wm.ID)
 	}
 	if wm.Focus != "weather conversation" {
@@ -290,12 +290,12 @@ func TestWorkingMemory_UpdatesWhenInputProvided(t *testing.T) {
 	defer mem.Close()
 
 	ctx := context.Background()
-	wm1, err := mem.WorkingMemory(ctx, "first focus")
+	wm1, err := mem.WorkingMemory(ctx, "test-ns", "first focus")
 	if err != nil {
 		t.Fatalf("WorkingMemory failed: %v", err)
 	}
 
-	wm2, err := mem.WorkingMemory(ctx, "second focus")
+	wm2, err := mem.WorkingMemory(ctx, "test-ns", "second focus")
 	if err != nil {
 		t.Fatalf("WorkingMemory failed: %v", err)
 	}
@@ -333,12 +333,12 @@ func TestWorkingMemory_CreatesNewWhenExpired(t *testing.T) {
 		embedder: mem.embedder,
 	}
 
-	wm1, err := mem.WorkingMemory(ctx, "first focus")
+	wm1, err := mem.WorkingMemory(ctx, "test-ns", "first focus")
 	if err != nil {
 		t.Fatalf("WorkingMemory failed: %v", err)
 	}
 
-	wm2, err := mem.WorkingMemory(ctx, "second focus")
+	wm2, err := mem.WorkingMemory(ctx, "test-ns", "second focus")
 	if err != nil {
 		t.Fatalf("WorkingMemory failed: %v", err)
 	}
@@ -379,7 +379,7 @@ func TestRemember_ConcurrentNoRace(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = mem.Remember(ctx, "concurrent event", nil)
+			_, _ = mem.Remember(ctx, "test-ns", "concurrent event", nil)
 		}()
 	}
 
@@ -426,8 +426,8 @@ func (f *failingStore) PutMany(ctx context.Context, rs []store.Record) error {
 	return f.inner.PutMany(ctx, rs)
 }
 
-func (f *failingStore) DeleteWhere(ctx context.Context, p *store.Predicate) (int64, error) {
-	return f.inner.DeleteWhere(ctx, p)
+func (f *failingStore) DeleteWhere(ctx context.Context, namespaces []string, p *store.Predicate) (int64, error) {
+	return f.inner.DeleteWhere(ctx, namespaces, p)
 }
 
 func (f *failingStore) Search(ctx context.Context, q store.Query) ([]store.SearchResult, error) {
@@ -442,8 +442,8 @@ func (f *failingStore) Iterate(ctx context.Context, f2 store.Filter) (<-chan sto
 	return f.inner.Iterate(ctx, f2)
 }
 
-func (f *failingStore) Count(ctx context.Context, p *store.Predicate) (int64, error) {
-	return f.inner.Count(ctx, p)
+func (f *failingStore) Count(ctx context.Context, namespaces []string, p *store.Predicate) (int64, error) {
+	return f.inner.Count(ctx, namespaces, p)
 }
 
 func (f *failingStore) WithTx(ctx context.Context, fn func(tx store.Store) error) error {
@@ -510,8 +510,8 @@ func (e *expiredStore) PutMany(ctx context.Context, rs []store.Record) error {
 	return e.inner.PutMany(ctx, rs)
 }
 
-func (e *expiredStore) DeleteWhere(ctx context.Context, p *store.Predicate) (int64, error) {
-	return e.inner.DeleteWhere(ctx, p)
+func (e *expiredStore) DeleteWhere(ctx context.Context, namespaces []string, p *store.Predicate) (int64, error) {
+	return e.inner.DeleteWhere(ctx, namespaces, p)
 }
 
 func (e *expiredStore) Search(ctx context.Context, q store.Query) ([]store.SearchResult, error) {
@@ -526,8 +526,8 @@ func (e *expiredStore) Iterate(ctx context.Context, f store.Filter) (<-chan stor
 	return e.inner.Iterate(ctx, f)
 }
 
-func (e *expiredStore) Count(ctx context.Context, p *store.Predicate) (int64, error) {
-	return e.inner.Count(ctx, p)
+func (e *expiredStore) Count(ctx context.Context, namespaces []string, p *store.Predicate) (int64, error) {
+	return e.inner.Count(ctx, namespaces, p)
 }
 
 func (e *expiredStore) WithTx(ctx context.Context, fn func(tx store.Store) error) error {

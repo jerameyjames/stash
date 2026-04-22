@@ -16,7 +16,11 @@ func contextShowCmd(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("bootstrap context not available")
 	}
 
-	output, err := actions.ShowContext(ctx, bc, actions.ShowContextInput{})
+	namespace := cmd.String("namespace")
+
+	output, err := actions.ShowContext(ctx, bc, actions.ShowContextInput{
+		Namespace: namespace,
+	})
 	if err != nil {
 		return err
 	}
@@ -37,6 +41,7 @@ func contextUpdateCmd(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	focus := args.First()
+	namespace := cmd.String("namespace")
 
 	bc, ok := cmd.Root().Metadata["bootstrapCtx"].(*bootstrap.Context)
 	if !ok {
@@ -44,7 +49,8 @@ func contextUpdateCmd(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	output, err := actions.UpdateContext(ctx, bc, actions.UpdateContextInput{
-		Focus: focus,
+		Namespace: namespace,
+		Focus:     focus,
 	})
 	if err != nil {
 		return err

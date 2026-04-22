@@ -9,7 +9,7 @@ import (
 
 // ShowContextInput defines the input for showing context.
 type ShowContextInput struct {
-	// Empty for now, could include options in the future
+	Namespace string `json:"namespace"`
 }
 
 // ShowContextOutput defines the output after showing context.
@@ -25,7 +25,7 @@ type ShowContextOutput struct {
 
 // ShowContext shows the current working memory context.
 func ShowContext(ctx context.Context, c *bootstrap.Context, input ShowContextInput) (ShowContextOutput, error) {
-	wm, err := c.Memory.WorkingMemory(ctx, "")
+	wm, err := c.Memory.WorkingMemory(ctx, input.Namespace, "")
 	if err != nil {
 		return ShowContextOutput{}, err
 	}

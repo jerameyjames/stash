@@ -147,15 +147,15 @@ func (s *Store) PutMany(ctx context.Context, rs []store.Record) error {
 }
 
 // DeleteWhere soft-deletes all live records matching the predicate.
-func (s *Store) DeleteWhere(ctx context.Context, p *store.Predicate) (int64, error) {
+func (s *Store) DeleteWhere(ctx context.Context, namespaces []string, p *store.Predicate) (int64, error) {
 	if s.txState != nil {
-		return s.txDeleteWhere(ctx, p)
+		return s.txDeleteWhere(ctx, namespaces, p)
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	records, err := s.listLocked(store.Filter{Where: p})
+	records, err := s.listLocked(store.Filter{Namespaces: namespaces, Where: p})
 	if err != nil {
 		return 0, err
 	}
@@ -323,8 +323,8 @@ func (s *Store) deleteLocked(id string) error {
 func (s *Store) purgeLocked(id string) {
 	if record, exists := s.records[id]; exists {
 		s.removeFromVectorsLocked(id, record)
+		delete(s.records, id)
 	}
-	delete(s.records, id)
 	delete(s.deleted, id)
 }
 

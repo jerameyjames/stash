@@ -22,6 +22,7 @@ func recallCmd(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("query cannot be empty")
 	}
 
+	namespaces := cmd.StringSlice("namespace")
 	limit := cmd.Int("limit")
 	if limit <= 0 {
 		limit = 10 // Default from action
@@ -33,8 +34,9 @@ func recallCmd(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	output, err := actions.SearchEvents(ctx, bc, actions.SearchEventsInput{
-		Query: query,
-		Limit: limit,
+		Namespaces: namespaces,
+		Query:      query,
+		Limit:      limit,
 	})
 	if err != nil {
 		return err

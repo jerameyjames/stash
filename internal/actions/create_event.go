@@ -10,13 +10,15 @@ import (
 
 // CreateEventInput defines the input for creating an event.
 type CreateEventInput struct {
-	Content  string         `json:"content"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Namespace string         `json:"namespace"`
+	Content   string         `json:"content"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
 }
 
 // CreateEventOutput defines the output after creating an event.
 type CreateEventOutput struct {
 	ID        string         `json:"id"`
+	Namespace string         `json:"namespace"`
 	Content   string         `json:"content"`
 	Metadata  map[string]any `json:"metadata,omitempty"`
 	Timestamp time.Time      `json:"timestamp"`
@@ -28,7 +30,7 @@ func CreateEvent(ctx context.Context, c *bootstrap.Context, input CreateEventInp
 		return CreateEventOutput{}, memory.ErrEmptyContent
 	}
 
-	eventID, err := c.Memory.Remember(ctx, input.Content, input.Metadata)
+	eventID, err := c.Memory.Remember(ctx, input.Namespace, input.Content, input.Metadata)
 	if err != nil {
 		return CreateEventOutput{}, err
 	}
@@ -64,6 +66,7 @@ func CreateEvent(ctx context.Context, c *bootstrap.Context, input CreateEventInp
 
 	return CreateEventOutput{
 		ID:        eventID,
+		Namespace: input.Namespace,
 		Content:   input.Content,
 		Metadata:  userMetadata,
 		Timestamp: timestamp,

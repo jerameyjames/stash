@@ -336,6 +336,13 @@ func (s *Store) queryToSQL(q store.Query, paramStart int) (string, []any, error)
 	var params []any
 	currentParam := paramStart
 
+	// Add namespace filter
+	if len(q.Namespaces) > 0 {
+		params = append(params, q.Namespaces)
+		whereParts = append(whereParts, fmt.Sprintf("namespace = ANY($%d::text[])", currentParam))
+		currentParam++
+	}
+
 	// Add filter predicate if present
 	if q.Filter != nil {
 		filterWhere, filterParams, err := translatePredicate(q.Filter, currentParam)
@@ -378,7 +385,7 @@ func (s *Store) queryToSQL(q store.Query, paramStart int) (string, []any, error)
 	}
 
 	return fmt.Sprintf(`
-		SELECT r.id, r.content, r.metadata, r.created_at, r.updated_at
+		SELECT r.id, r.namespace, r.content, r.metadata, r.created_at, r.updated_at
 		FROM records r
 		%s
 		%s

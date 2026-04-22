@@ -59,10 +59,10 @@ func (s *Store) Get(ctx context.Context, id string) (store.Record, error) {
 	var metadata map[string]any
 
 	err := s.db.QueryRow(ctx, `
-		SELECT id, content, metadata, created_at, updated_at
+		SELECT id, namespace, content, metadata, created_at, updated_at
 		FROM records
 		WHERE id = $1 AND deleted_at IS NULL
-	`, id).Scan(&r.ID, &r.Content, &metadata, &r.CreatedAt, &r.UpdatedAt)
+	`, id).Scan(&r.ID, &r.Namespace, &r.Content, &metadata, &r.CreatedAt, &r.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return store.Record{}, store.ErrNotFound
@@ -163,12 +163,12 @@ func upsertRecord(ctx context.Context, q querier, r store.Record) error {
 	}
 
 	_, err := q.Exec(ctx, `
-		INSERT INTO records (id, content, metadata, created_at, updated_at, deleted_at)
-		VALUES ($1, $2, $3, $4, $5, NULL)
+		INSERT INTO records (id, namespace, content, metadata, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, NULL)
 		ON CONFLICT (id) DO UPDATE
-		SET content = $2, metadata = $3, updated_at = $5, deleted_at = NULL
+		SET namespace = $2, content = $3, metadata = $4, updated_at = $6, deleted_at = NULL
 	`,
-		r.ID, r.Content, metadata, r.CreatedAt, r.UpdatedAt)
+		r.ID, r.Namespace, r.Content, metadata, r.CreatedAt, r.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("postgres: upsert record: %w", err)
 	}

@@ -44,6 +44,10 @@ func main() {
 						Action:  rememberCmd,
 						Flags: []cli.Flag{
 							&cli.StringFlag{
+								Name:  "namespace",
+								Usage: "Namespace for the event",
+							},
+							&cli.StringFlag{
 								Name:  "metadata",
 								Usage: "JSON metadata for the event",
 							},
@@ -55,6 +59,10 @@ func main() {
 						Usage:   "Search for relevant events",
 						Action:  recallCmd,
 						Flags: []cli.Flag{
+							&cli.StringSliceFlag{
+								Name:  "namespace",
+								Usage: "Namespaces to search (comma-separated or repeated)",
+							},
 							&cli.IntFlag{
 								Name:  "limit",
 								Usage: "Maximum number of results",
@@ -67,6 +75,10 @@ func main() {
 						Usage:  "List recent events",
 						Action: listCmd,
 						Flags: []cli.Flag{
+							&cli.StringSliceFlag{
+								Name:  "namespace",
+								Usage: "Namespaces to list (comma-separated or repeated)",
+							},
 							&cli.IntFlag{
 								Name:  "limit",
 								Usage: "Maximum number of results",
@@ -94,11 +106,23 @@ func main() {
 						Name:   "show",
 						Usage:  "View current working memory context",
 						Action: contextShowCmd,
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:  "namespace",
+								Usage: "Namespace for the context",
+							},
+						},
 					},
 					{
 						Name:   "update",
 						Usage:  "Update the focus of working memory",
 						Action: contextUpdateCmd,
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:  "namespace",
+								Usage: "Namespace for the context",
+							},
+						},
 					},
 				},
 			},

@@ -8,6 +8,7 @@ import (
 // Stored as a store.Record with _memory.type = "event".
 type Event struct {
 	ID        string
+	Namespace string
 	Content   string
 	Timestamp time.Time
 	Metadata  map[string]any

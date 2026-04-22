@@ -9,8 +9,9 @@ import (
 
 // SearchEventsInput defines the input for searching events.
 type SearchEventsInput struct {
-	Query string `json:"query"`
-	Limit int    `json:"limit,omitempty"`
+	Namespaces []string `json:"namespaces"`
+	Query      string   `json:"query"`
+	Limit      int      `json:"limit,omitempty"`
 }
 
 // SearchEventsOutput defines the output after searching events.
@@ -34,7 +35,7 @@ func SearchEvents(ctx context.Context, c *bootstrap.Context, input SearchEventsI
 		input.Limit = 10 // Default
 	}
 
-	events, err := c.Memory.Recall(ctx, input.Query, input.Limit)
+	events, err := c.Memory.Recall(ctx, input.Namespaces, input.Query, input.Limit)
 	if err != nil {
 		return SearchEventsOutput{}, err
 	}
@@ -55,6 +56,7 @@ func SearchEvents(ctx context.Context, c *bootstrap.Context, input SearchEventsI
 		output.Events = append(output.Events, SearchEventItem{
 			EventItem: EventItem{
 				ID:        event.ID,
+				Namespace: event.Namespace,
 				Content:   event.Content,
 				Metadata:  userMetadata,
 				Timestamp: event.Timestamp,

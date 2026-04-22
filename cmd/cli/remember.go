@@ -22,6 +22,8 @@ func rememberCmd(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("content cannot be empty")
 	}
 
+	namespace := cmd.String("namespace")
+
 	var metadata map[string]any
 	if metadataFlag := cmd.String("metadata"); metadataFlag != "" {
 		if err := json.Unmarshal([]byte(metadataFlag), &metadata); err != nil {
@@ -35,8 +37,9 @@ func rememberCmd(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	output, err := actions.CreateEvent(ctx, bc, actions.CreateEventInput{
-		Content:  content,
-		Metadata: metadata,
+		Namespace: namespace,
+		Content:   content,
+		Metadata:  metadata,
 	})
 	if err != nil {
 		return err

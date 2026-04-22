@@ -5,6 +5,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS records (
     _row_id BIGSERIAL,
     id TEXT PRIMARY KEY,
+    namespace TEXT NOT NULL DEFAULT '',
     content TEXT NOT NULL DEFAULT '',
     metadata JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS record_vectors (
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_records_row_id ON records(_row_id);
+CREATE INDEX IF NOT EXISTS idx_records_namespace ON records(namespace);
 CREATE INDEX IF NOT EXISTS idx_records_deleted_at ON records(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_records_created_at ON records(created_at);
 CREATE INDEX IF NOT EXISTS idx_records_updated_at ON records(updated_at);

@@ -9,7 +9,8 @@ import (
 
 // UpdateContextInput defines the input for updating context.
 type UpdateContextInput struct {
-	Focus string `json:"focus"`
+	Namespace string `json:"namespace"`
+	Focus     string `json:"focus"`
 }
 
 // UpdateContextOutput defines the output after updating context.
@@ -25,7 +26,7 @@ func UpdateContext(ctx context.Context, c *bootstrap.Context, input UpdateContex
 		return UpdateContextOutput{}, memory.ErrEmptyContent
 	}
 
-	wm, err := c.Memory.WorkingMemory(ctx, input.Focus)
+	wm, err := c.Memory.WorkingMemory(ctx, input.Namespace, input.Focus)
 	if err != nil {
 		return UpdateContextOutput{}, err
 	}

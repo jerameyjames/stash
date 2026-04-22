@@ -38,6 +38,13 @@ func (s *Store) searchVector(ctx context.Context, q store.Query) ([]store.Search
 	var params []any
 	currentParam := 1
 
+	// Add namespace filter
+	if len(q.Namespaces) > 0 {
+		params = append(params, q.Namespaces)
+		whereParts = append(whereParts, fmt.Sprintf("r.namespace = ANY($%d::text[])", currentParam))
+		currentParam++
+	}
+
 	// Add filter predicate if present
 	if q.Filter != nil {
 		filterWhere, filterParams, err := translatePredicateWithoutDeleted(q.Filter, currentParam)
@@ -70,7 +77,7 @@ func (s *Store) searchVector(ctx context.Context, q store.Query) ([]store.Search
 	queryParam := currentParam
 
 	sql := fmt.Sprintf(`
-		SELECT r.id, r.content, r.metadata, r.created_at, r.updated_at,
+		SELECT r.id, r.namespace, r.content, r.metadata, r.created_at, r.updated_at,
 			LEAST(GREATEST(1 - (v.vector <=> $%d), 0), 1) AS score
 		FROM records r
 		INNER JOIN record_vectors v ON r.id = v.record_id
@@ -119,6 +126,18 @@ func (s *Store) List(ctx context.Context, f store.Filter) ([]store.Record, error
 	if err != nil {
 		return nil, err
 	}
+	if params == nil {
+		params = []any{}
+	}
+
+	// Add namespace filter
+	if len(f.Namespaces) > 0 {
+		if params == nil {
+			params = []any{}
+		}
+		params = append(params, f.Namespaces)
+		where += fmt.Sprintf(" AND namespace = ANY($%d::text[])", len(params))
+	}
 
 	orderBy, err := translateOrder(f.Order)
 	if err != nil {
@@ -126,7 +145,7 @@ func (s *Store) List(ctx context.Context, f store.Filter) ([]store.Record, error
 	}
 
 	sql := fmt.Sprintf(`
-		SELECT id, content, metadata, created_at, updated_at
+		SELECT id, namespace, content, metadata, created_at, updated_at
 		FROM records
 		WHERE %s
 		%s
@@ -166,6 +185,12 @@ func (s *Store) iterateWithCursor(ctx context.Context, f store.Filter) (<-chan s
 			return
 		}
 
+		// Add namespace filter
+		if len(f.Namespaces) > 0 {
+			params = append(params, f.Namespaces)
+			where += fmt.Sprintf(" AND namespace = ANY($%d::text[])", len(params))
+		}
+
 		orderBy, err := translateOrder(f.Order)
 		if err != nil {
 			errCh <- err
@@ -186,7 +211,7 @@ func (s *Store) iterateWithCursor(ctx context.Context, f store.Filter) (<-chan s
 		// Note: cursor names cannot be parameterized, must use string formatting
 		// but safeCursorName() ensures safe identifier
 		declareSQL := fmt.Sprintf(`DECLARE "%s" CURSOR WITH HOLD FOR
-			SELECT id, content, metadata, created_at, updated_at
+			SELECT id, namespace, content, metadata, created_at, updated_at
 			FROM records
 			WHERE %s
 			%s`, cursorName, where, orderBy)
@@ -311,6 +336,12 @@ func (s *Store) iterateWithPagination(ctx context.Context, f store.Filter) (<-ch
 				return
 			}
 
+			// Add namespace filter
+			if len(f.Namespaces) > 0 {
+				params = append(params, f.Namespaces)
+				where += fmt.Sprintf(" AND namespace = ANY($%d::text[])", len(params))
+			}
+
 			orderBy, err := translateOrder(f.Order)
 			if err != nil {
 				errCh <- err
@@ -327,7 +358,7 @@ func (s *Store) iterateWithPagination(ctx context.Context, f store.Filter) (<-ch
 			}
 
 			sql := fmt.Sprintf(`
-				SELECT id, content, metadata, created_at, updated_at
+				SELECT id, namespace, content, metadata, created_at, updated_at
 				FROM records
 				WHERE %s
 				%s
@@ -374,10 +405,16 @@ func (s *Store) iterateWithPagination(ctx context.Context, f store.Filter) (<-ch
 }
 
 // Count returns the number of live records matching the predicate.
-func (s *Store) Count(ctx context.Context, p *store.Predicate) (int64, error) {
+func (s *Store) Count(ctx context.Context, namespaces []string, p *store.Predicate) (int64, error) {
 	where, params, err := translatePredicate(p, 1)
 	if err != nil {
 		return 0, err
+	}
+
+	// Add namespace filter
+	if len(namespaces) > 0 {
+		params = append(params, namespaces)
+		where += fmt.Sprintf(" AND namespace = ANY($%d::text[])", len(params))
 	}
 
 	var count int64
@@ -394,7 +431,7 @@ func (s *Store) Count(ctx context.Context, p *store.Predicate) (int64, error) {
 }
 
 // DeleteWhere soft‑deletes all live records matching the predicate.
-func (s *Store) DeleteWhere(ctx context.Context, p *store.Predicate) (int64, error) {
+func (s *Store) DeleteWhere(ctx context.Context, namespaces []string, p *store.Predicate) (int64, error) {
 	if p == nil {
 		// Optimize common case: delete all live records
 		sql := `
@@ -402,7 +439,15 @@ func (s *Store) DeleteWhere(ctx context.Context, p *store.Predicate) (int64, err
 			SET deleted_at = NOW()
 			WHERE deleted_at IS NULL
 		`
-		tag, err := s.db.Exec(ctx, sql)
+		params := []any{}
+		
+		// Add namespace filter if specified
+		if len(namespaces) > 0 {
+			params = append(params, namespaces)
+			sql += fmt.Sprintf(" AND namespace = ANY($%d::text[])", len(params))
+		}
+		
+		tag, err := s.db.Exec(ctx, sql, params...)
 		if err != nil {
 			return 0, fmt.Errorf("postgres: delete where all: %w", err)
 		}
@@ -415,13 +460,21 @@ func (s *Store) DeleteWhere(ctx context.Context, p *store.Predicate) (int64, err
 		return 0, err
 	}
 
+	// Build namespace filter
+	namespaceFilter := ""
+	namespaceParams := []any{}
+	if len(namespaces) > 0 {
+		namespaceParams = append(namespaceParams, namespaces)
+		namespaceFilter = fmt.Sprintf(" AND namespace = ANY($%d::text[])", len(params)+1)
+	}
+
 	sql := fmt.Sprintf(`
 		UPDATE records
 		SET deleted_at = NOW()
-		WHERE %s AND deleted_at IS NULL
-	`, where)
+		WHERE %s AND deleted_at IS NULL%s
+	`, where, namespaceFilter)
 
-	tag, err := s.db.Exec(ctx, sql, params...)
+	tag, err := s.db.Exec(ctx, sql, append(params, namespaceParams...)...)
 	if err != nil {
 		return 0, fmt.Errorf("postgres: delete where: %w", err)
 	}
@@ -455,7 +508,7 @@ func scanRecords(ctx context.Context, s *Store, rows pgx.Rows) ([]store.Record, 
 		var r store.Record
 		var metadata map[string]any
 
-		if err := rows.Scan(&r.ID, &r.Content, &metadata, &r.CreatedAt, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.Namespace, &r.Content, &metadata, &r.CreatedAt, &r.UpdatedAt); err != nil {
 			return nil, err
 		}
 
@@ -492,7 +545,7 @@ func scanSearchResults(ctx context.Context, s *Store, rows pgx.Rows) ([]store.Se
 		var metadata map[string]any
 		var score float32
 
-		if err := rows.Scan(&r.ID, &r.Content, &metadata, &r.CreatedAt, &r.UpdatedAt, &score); err != nil {
+		if err := rows.Scan(&r.ID, &r.Namespace, &r.Content, &metadata, &r.CreatedAt, &r.UpdatedAt, &score); err != nil {
 			return nil, err
 		}
 

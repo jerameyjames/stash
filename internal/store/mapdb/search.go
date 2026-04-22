@@ -36,6 +36,24 @@ func (s *Store) Search(ctx context.Context, q store.Query) ([]store.SearchResult
 		}
 	}
 
+	// Filter by namespace if specified
+	if len(q.Namespaces) > 0 && len(results) > 0 {
+		filtered := make([]store.SearchResult, 0, len(results))
+		for _, result := range results {
+			found := false
+			for _, ns := range q.Namespaces {
+				if result.Record.Namespace == ns {
+					found = true
+					break
+				}
+			}
+			if found {
+				filtered = append(filtered, result)
+			}
+		}
+		results = filtered
+	}
+
 	// Filter results if predicate provided
 	if q.Filter != nil && len(results) > 0 {
 		filtered := make([]store.SearchResult, 0, len(results))
@@ -120,16 +138,17 @@ func (s *Store) Iterate(ctx context.Context, f store.Filter) (<-chan store.Recor
 	return recordCh, errCh
 }
 
-// Count returns the number of live records matching the predicate.
-func (s *Store) Count(ctx context.Context, p *store.Predicate) (int64, error) {
+// Count returns the number of live records in the given namespaces matching the predicate.
+// Empty namespaces slice means all namespaces.
+func (s *Store) Count(ctx context.Context, namespaces []string, p *store.Predicate) (int64, error) {
 	if s.txState != nil {
-		return s.txCount(ctx, p)
+		return s.txCount(ctx, namespaces, p)
 	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	records, err := s.listLocked(store.Filter{Where: p})
+	records, err := s.listLocked(store.Filter{Namespaces: namespaces, Where: p})
 	if err != nil {
 		return 0, err
 	}
@@ -145,6 +164,21 @@ func (s *Store) listLocked(f store.Filter) ([]*store.Record, error) {
 		if s.deleted[id] {
 			continue
 		}
+		
+		// Filter by namespace if specified
+		if len(f.Namespaces) > 0 {
+			found := false
+			for _, ns := range f.Namespaces {
+				if record.Namespace == ns {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+		
 		if f.Where == nil || s.evaluatePredicate(record, f.Where).toBool() {
 			results = append(results, record)
 		}

@@ -16,6 +16,10 @@ type Record struct {
 	// ID is the unique identifier for the record.
 	ID string
 
+	// Namespace isolates records for multi-tenant use (e.g., user_id, tenant_id).
+	// Required; empty string is not a valid namespace.
+	Namespace string
+
 	// Content is the primary text content.
 	Content string
 
@@ -107,6 +111,10 @@ type Order struct {
 
 // Filter defines a structured query for listing records.
 type Filter struct {
+	// Namespaces restricts results to records in these namespaces.
+	// Empty slice means all namespaces.
+	Namespaces []string
+
 	// Where is the predicate to match; nil matches all live records.
 	Where *Predicate
 
@@ -123,6 +131,10 @@ type Filter struct {
 
 // Query defines a search query for vector or text similarity.
 type Query struct {
+	// Namespaces restricts search to records in these namespaces.
+	// Empty slice means all namespaces.
+	Namespaces []string
+
 	// Vector is the query embedding for semantic search.
 	Vector []float32
 
@@ -161,9 +173,10 @@ type Store interface {
 	// PutMany stores multiple records atomically.
 	PutMany(ctx context.Context, rs []Record) error
 
-	// DeleteWhere soft‑deletes all live records matching the predicate.
+	// DeleteWhere soft‑deletes all live records in the given namespaces matching the predicate.
+	// Empty namespaces slice means all namespaces.
 	// Returns the number of records deleted.
-	DeleteWhere(ctx context.Context, p *Predicate) (count int64, err error)
+	DeleteWhere(ctx context.Context, namespaces []string, p *Predicate) (count int64, err error)
 
 	// Read operations
 
@@ -178,8 +191,9 @@ type Store interface {
 	// Respects ctx cancellation. Uses server‑side cursors to avoid OOM.
 	Iterate(ctx context.Context, f Filter) (<-chan Record, <-chan error)
 
-	// Count returns the number of live records matching the predicate.
-	Count(ctx context.Context, p *Predicate) (int64, error)
+	// Count returns the number of live records in the given namespaces matching the predicate.
+	// Empty namespaces slice means all namespaces.
+	Count(ctx context.Context, namespaces []string, p *Predicate) (int64, error)
 
 	// Transactions
 

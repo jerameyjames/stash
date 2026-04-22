@@ -48,7 +48,7 @@ func New(s store.Store, e embedder.Embedder) (*Memory, error) {
 // Returns the generated event ID on success.
 // content must not be empty.
 // metadata keys must not start with "_memory" (returns ErrInvalidMetadata).
-func (m *Memory) Remember(ctx context.Context, content string, metadata map[string]any) (string, error) {
+func (m *Memory) Remember(ctx context.Context, namespace, content string, metadata map[string]any) (string, error) {
 	if content == "" {
 		return "", ErrEmptyContent
 	}
@@ -78,8 +78,9 @@ func (m *Memory) Remember(ctx context.Context, content string, metadata map[stri
 	}
 
 	record := store.Record{
-		ID:      eventID,
-		Content: content,
+		ID:        eventID,
+		Namespace: namespace,
+		Content:   content,
 		Vectors: map[string]store.Vector{
 			m.embedder.Model(): {
 				Values: vec,
@@ -101,7 +102,7 @@ func (m *Memory) Remember(ctx context.Context, content string, metadata map[stri
 // Returns at most limit events ordered by relevance.
 // Returns empty slice (not error) when nothing matches.
 // limit must be > 0.
-func (m *Memory) Recall(ctx context.Context, query string, limit int) ([]Event, error) {
+func (m *Memory) Recall(ctx context.Context, namespaces []string, query string, limit int) ([]Event, error) {
 	if limit <= 0 {
 		return nil, ErrInvalidLimit
 	}
@@ -112,6 +113,7 @@ func (m *Memory) Recall(ctx context.Context, query string, limit int) ([]Event, 
 	}
 
 	results, err := m.store.Search(ctx, store.Query{
+		Namespaces: namespaces,
 		Vector:     vec,
 		VectorName: m.embedder.Model(),
 		TopK:       limit,
@@ -144,10 +146,13 @@ func (m *Memory) Recall(ctx context.Context, query string, limit int) ([]Event, 
 // re-searches for relevant events, and resets the expiry.
 // Empty input returns existing context unchanged.
 // Does not start background goroutines.
-func (m *Memory) WorkingMemory(ctx context.Context, input string) (WorkingMemory, error) {
-	record, err := m.store.Get(ctx, contextID)
+func (m *Memory) WorkingMemory(ctx context.Context, namespace, input string) (WorkingMemory, error) {
+	// Context ID is namespaced
+	contextIDWithNamespace := namespace + ":" + contextID
+	
+	record, err := m.store.Get(ctx, contextIDWithNamespace)
 	if errors.Is(err, store.ErrNotFound) {
-		return m.createWorkingMemory(ctx, input)
+		return m.createWorkingMemory(ctx, namespace, input)
 	}
 	if err != nil {
 		return WorkingMemory{}, err
@@ -159,11 +164,11 @@ func (m *Memory) WorkingMemory(ctx context.Context, input string) (WorkingMemory
 	}
 
 	if time.Now().UTC().After(wm.ExpiresAt) {
-		return m.createWorkingMemory(ctx, input)
+		return m.createWorkingMemory(ctx, namespace, input)
 	}
 
 	if input != "" {
-		return m.updateWorkingMemory(ctx, wm, input)
+		return m.updateWorkingMemory(ctx, namespace, wm, input)
 	}
 
 	// input == "" → return existing context unchanged
@@ -175,10 +180,12 @@ func (m *Memory) Close() error {
 	return nil
 }
 
-func (m *Memory) createWorkingMemory(ctx context.Context, focus string) (WorkingMemory, error) {
+func (m *Memory) createWorkingMemory(ctx context.Context, namespace, focus string) (WorkingMemory, error) {
 	now := time.Now().UTC()
+	contextIDWithNamespace := namespace + ":" + contextID
+	
 	wm := WorkingMemory{
-		ID:        contextID,
+		ID:        contextIDWithNamespace,
 		Focus:     focus,
 		EventIDs:  nil,
 		CreatedAt: now,
@@ -187,7 +194,7 @@ func (m *Memory) createWorkingMemory(ctx context.Context, focus string) (Working
 	}
 
 	if focus != "" {
-		events, err := m.Recall(ctx, focus, 10)
+		events, err := m.Recall(ctx, []string{namespace}, focus, 10)
 		if err == nil {
 			wm.EventIDs = make([]string, 0, len(events))
 			for _, e := range events {
@@ -208,8 +215,9 @@ func (m *Memory) createWorkingMemory(ctx context.Context, focus string) (Working
 	}
 
 	record := store.Record{
-		ID:       contextID,
-		Metadata: recordMeta,
+		ID:        contextIDWithNamespace,
+		Namespace: namespace,
+		Metadata:  recordMeta,
 	}
 
 	if err := m.store.Put(ctx, record); err != nil {
@@ -219,17 +227,19 @@ func (m *Memory) createWorkingMemory(ctx context.Context, focus string) (Working
 	return wm, nil
 }
 
-func (m *Memory) updateWorkingMemory(ctx context.Context, existing WorkingMemory, focus string) (WorkingMemory, error) {
+func (m *Memory) updateWorkingMemory(ctx context.Context, namespace string, existing WorkingMemory, focus string) (WorkingMemory, error) {
 	now := time.Now().UTC()
+	contextIDWithNamespace := namespace + ":" + contextID
+
 	wm := WorkingMemory{
-		ID:        contextID,
+		ID:        contextIDWithNamespace,
 		Focus:     focus,
 		CreatedAt: existing.CreatedAt,
 		UpdatedAt: now,
 		ExpiresAt: now.Add(contextDuration),
 	}
 
-	events, err := m.Recall(ctx, focus, 10)
+	events, err := m.Recall(ctx, []string{namespace}, focus, 10)
 	if err == nil {
 		wm.EventIDs = make([]string, 0, len(events))
 		for _, e := range events {
@@ -249,8 +259,9 @@ func (m *Memory) updateWorkingMemory(ctx context.Context, existing WorkingMemory
 	}
 
 	record := store.Record{
-		ID:       contextID,
-		Metadata: recordMeta,
+		ID:        contextIDWithNamespace,
+		Namespace: namespace,
+		Metadata:  recordMeta,
 	}
 
 	if err := m.store.Put(ctx, record); err != nil {
@@ -301,6 +312,7 @@ func recordToEvent(r store.Record, score float32) (Event, error) {
 
 	return Event{
 		ID:        r.ID,
+		Namespace: r.Namespace,
 		Content:   content,
 		Timestamp: timestamp,
 		Metadata:  callerMeta,

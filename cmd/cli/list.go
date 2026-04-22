@@ -16,13 +16,15 @@ func listCmd(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("bootstrap context not available")
 	}
 
+	namespaces := cmd.StringSlice("namespace")
 	limit := cmd.Int("limit")
 	if limit <= 0 {
 		limit = 20 // Default from action
 	}
 
 	output, err := actions.ListEvents(ctx, bc, actions.ListEventsInput{
-		Limit: limit,
+		Namespaces: namespaces,
+		Limit:      limit,
 	})
 	if err != nil {
 		return err

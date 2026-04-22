@@ -10,7 +10,8 @@ import (
 
 // ListEventsInput defines the input for listing events.
 type ListEventsInput struct {
-	Limit int `json:"limit,omitempty"`
+	Namespaces []string `json:"namespaces"`
+	Limit      int      `json:"limit,omitempty"`
 }
 
 // ListEventsOutput defines the output after listing events.
@@ -30,7 +31,8 @@ func ListEvents(ctx context.Context, c *bootstrap.Context, input ListEventsInput
 	}
 
 	records, err := c.Store.List(ctx, store.Filter{
-		Limit: input.Limit,
+		Namespaces: input.Namespaces,
+		Limit:      input.Limit,
 		Where: &store.Predicate{
 			Field: "metadata._memory.type",
 			Op:    store.OpEq,
@@ -72,6 +74,7 @@ func ListEvents(ctx context.Context, c *bootstrap.Context, input ListEventsInput
 		output.Events = append(output.Events, ListEventItem{
 			EventItem: EventItem{
 				ID:        record.ID,
+				Namespace: record.Namespace,
 				Content:   record.Content,
 				Metadata:  userMetadata,
 				Timestamp: timestamp,

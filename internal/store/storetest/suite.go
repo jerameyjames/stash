@@ -29,6 +29,7 @@ func RunSuite(t *testing.T, s store.Store) {
 	t.Run("PredicateComposition", func(t *testing.T) { testPredicateComposition(t, s) })
 	t.Run("MetadataPaths", func(t *testing.T) { testMetadataPaths(t, s) })
 	t.Run("VectorWithFilter", func(t *testing.T) { testVectorWithFilter(t, s) })
+	t.Run("NamespaceIsolation", func(t *testing.T) { testNamespaceIsolation(t, s) })
 }
 
 func testPutGet(t *testing.T, s store.Store) {
@@ -166,7 +167,7 @@ func testDeleteWhere(t *testing.T, s store.Store) {
 	}
 
 	// Delete all category "A"
-	count, err := s.DeleteWhere(ctx, &store.Predicate{
+	count, err := s.DeleteWhere(ctx, nil, &store.Predicate{
 		Field: "metadata.category",
 		Op:    store.OpEq,
 		Value: "A",
@@ -333,7 +334,7 @@ func testCount(t *testing.T, s store.Store) {
 	}
 
 	// Count all
-	count, err := s.Count(ctx, nil)
+	count, err := s.Count(ctx, nil, nil)
 	if err != nil {
 		t.Fatalf("Count failed: %v", err)
 	}
@@ -342,7 +343,7 @@ func testCount(t *testing.T, s store.Store) {
 	}
 
 	// Count with predicate
-	count, err = s.Count(ctx, &store.Predicate{
+	count, err = s.Count(ctx, nil, &store.Predicate{
 		Field: "metadata.type",
 		Op:    store.OpEq,
 		Value: "test",
@@ -437,7 +438,7 @@ func testSoftDeleteInvisibility(t *testing.T, s store.Store) {
 	}
 
 	// Verify invisible via Count
-	count, _ := s.Count(ctx, &store.Predicate{
+	count, _ := s.Count(ctx, nil, &store.Predicate{
 		Field: "id",
 		Op:    store.OpEq,
 		Value: "soft-delete-test",
@@ -664,4 +665,90 @@ func testVectorWithFilter(t *testing.T, s store.Store) {
 	// May fail if no matching vectors, but tests the code path
 	_ = results
 	_ = err
+}
+
+func testNamespaceIsolation(t *testing.T, s store.Store) {
+	ctx := context.Background()
+
+	// Create records in different namespaces
+	namespaces := []string{"ns-alpha", "ns-beta", "ns-gamma"}
+	for _, ns := range namespaces {
+		for i := 0; i < 5; i++ {
+			err := s.Put(ctx, store.Record{
+				ID:        ns + "-" + string(rune('a'+i)),
+				Namespace: ns,
+				Content:   "Record in " + ns,
+				Metadata:  map[string]any{"ns": ns},
+			})
+			if err != nil {
+				t.Fatalf("Put failed: %v", err)
+			}
+		}
+	}
+
+	// List with single namespace filter
+	results, err := s.List(ctx, store.Filter{
+		Namespaces: []string{"ns-alpha"},
+	})
+	if err != nil {
+		t.Fatalf("List with namespace filter failed: %v", err)
+	}
+	if len(results) != 5 {
+		t.Errorf("Expected 5 results for ns-alpha, got %d", len(results))
+	}
+	for _, r := range results {
+		if r.Namespace != "ns-alpha" {
+			t.Errorf("Expected namespace ns-alpha, got %q", r.Namespace)
+		}
+	}
+
+	// List with multiple namespace filter
+	results, err = s.List(ctx, store.Filter{
+		Namespaces: []string{"ns-alpha", "ns-beta"},
+	})
+	if err != nil {
+		t.Fatalf("List with multiple namespaces failed: %v", err)
+	}
+	if len(results) != 10 {
+		t.Errorf("Expected 10 results for ns-alpha+ns-beta, got %d", len(results))
+	}
+
+	// List with no namespace filter (all namespaces)
+	results, err = s.List(ctx, store.Filter{})
+	if err != nil {
+		t.Fatalf("List with no namespace filter failed: %v", err)
+	}
+	if len(results) < 15 {
+		t.Errorf("Expected at least 15 results across all namespaces, got %d", len(results))
+	}
+
+	// Count with namespace filter
+	count, err := s.Count(ctx, []string{"ns-alpha"}, nil)
+	if err != nil {
+		t.Fatalf("Count with namespace filter failed: %v", err)
+	}
+	if count != 5 {
+		t.Errorf("Expected 5 count for ns-alpha, got %d", count)
+	}
+
+	// DeleteWhere with namespace filter
+	deleted, err := s.DeleteWhere(ctx, []string{"ns-beta"}, nil)
+	if err != nil {
+		t.Fatalf("DeleteWhere with namespace filter failed: %v", err)
+	}
+	if deleted != 5 {
+		t.Errorf("Expected 5 deleted for ns-beta, got %d", deleted)
+	}
+
+	// Verify ns-beta records are gone
+	count, _ = s.Count(ctx, []string{"ns-beta"}, nil)
+	if count != 0 {
+		t.Errorf("Expected 0 count for ns-beta after DeleteWhere, got %d", count)
+	}
+
+	// Verify other namespaces are unaffected
+	count, _ = s.Count(ctx, []string{"ns-alpha"}, nil)
+	if count != 5 {
+		t.Errorf("Expected 5 count for ns-alpha after ns-beta deletion, got %d", count)
+	}
 }

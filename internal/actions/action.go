@@ -11,6 +11,7 @@ import (
 // EventItem contains common fields for event representations in action outputs.
 type EventItem struct {
 	ID        string         `json:"id"`
+	Namespace string         `json:"namespace"`
 	Content   string         `json:"content"`
 	Metadata  map[string]any `json:"metadata,omitempty"`
 	Timestamp time.Time      `json:"timestamp"`

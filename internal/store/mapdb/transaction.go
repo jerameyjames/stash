@@ -117,11 +117,25 @@ func (s *Store) txGet(ctx context.Context, id string) (store.Record, error) {
 }
 
 func (s *Store) txDelete(ctx context.Context, id string) error {
+	// Check if record exists
+	_, err := s.txGet(ctx, id)
+	if err != nil {
+		return err
+	}
+	
+	// Record exists, mark for deletion
 	s.txState.pending[id] = nil
 	return nil
 }
 
 func (s *Store) txPurge(ctx context.Context, id string) error {
+	// Check if record exists
+	_, err := s.txGet(ctx, id)
+	if err != nil {
+		return err
+	}
+	
+	// Record exists, purge it
 	delete(s.txState.pending, id)
 	delete(s.txState.snapshot, id)
 	delete(s.txState.deleted, id)
@@ -138,12 +152,25 @@ func (s *Store) txPutMany(ctx context.Context, rs []store.Record) error {
 	return nil
 }
 
-func (s *Store) txDeleteWhere(ctx context.Context, p *store.Predicate) (int64, error) {
+func (s *Store) txDeleteWhere(ctx context.Context, namespaces []string, p *store.Predicate) (int64, error) {
 	// Collect matching records from snapshot
 	var toDelete []string
 	for id, record := range s.txState.snapshot {
 		if s.txState.deleted[id] {
 			continue
+		}
+		// Check namespace if namespaces specified
+		if len(namespaces) > 0 {
+			found := false
+			for _, ns := range namespaces {
+				if record.Namespace == ns {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
 		}
 		if s.evaluatePredicate(record, p).toBool() {
 			toDelete = append(toDelete, id)
@@ -205,7 +232,7 @@ func (s *Store) txList(ctx context.Context, f store.Filter) ([]store.Record, err
 	return temp.List(ctx, f)
 }
 
-func (s *Store) txCount(ctx context.Context, p *store.Predicate) (int64, error) {
+func (s *Store) txCount(ctx context.Context, namespaces []string, p *store.Predicate) (int64, error) {
 	temp := &Store{
 		config:  s.config,
 		records: s.txState.snapshot,
@@ -224,5 +251,5 @@ func (s *Store) txCount(ctx context.Context, p *store.Predicate) (int64, error) 
 		}
 	}
 
-	return temp.Count(ctx, p)
+	return temp.Count(ctx, namespaces, p)
 }
