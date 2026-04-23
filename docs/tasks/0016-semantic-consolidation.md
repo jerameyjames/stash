@@ -1,6 +1,6 @@
 # Task: Semantic Consolidation (Relationship Extraction)
 
-**Status:** In Execution  
+**Status:** Completed  
 **Date:** 2026-04-24
 
 ---
@@ -196,9 +196,67 @@ From: engineer | RelationType: at_organization | To: TechCorp | Confidence: 0.75
 ## 8. Progress Notes
 
 - [2026-04-24 starting] Reading context and existing code
+- [2026-04-24 complete] Extended Reasoner interface with `ReasonRelationships` method
+- [2026-04-24 complete] Implemented in OpenAI and Fake reasoners
+- [2026-04-24 complete] Added `ConsolidateRelationships` method to Memory
+- [2026-04-24 complete] Added CLI command `facts extract-relationships`
+- [2026-04-24 complete] Wrote 6 unit tests (all passing)
+- [2026-04-24 complete] go build clean, go vet clean
+- [2026-04-24 complete] All 140+ tests pass
 
 ---
 
 ## 9. Outcome
 
-(To be filled after completion)
+**Final Result:**
+
+Task 0016 (Semantic Consolidation - Relationship Extraction) is complete. The system now automatically extracts relationships between entities from stored facts using LLM reasoning.
+
+**What Changed:**
+- `internal/reasoner/reasoner.go`: +35 lines (StructuredRelationship type, ReasonRelationships method added to interface)
+- `internal/reasoner/openai.go`: +100 lines (ReasonRelationships impl, multi-line parsing helpers)
+- `internal/reasoner/fake.go`: +20 lines (ReasonRelationships impl for testing)
+- `internal/memory/memory.go`: +120 lines (ConsolidateRelationships method + updateRelationshipConfidence helper)
+- `cmd/cli/facts_extract_relationships.go`: +50 lines (CLI command handler, new file)
+- `cmd/cli/main.go`: +25 lines (Register extract-relationships command)
+- `internal/memory/memory_test.go`: +360 lines (6 new unit tests)
+- `docs/tasks/0016-semantic-consolidation.md`: Task spec (this file)
+- Total: ~710 lines added
+
+**What Was Verified:**
+- ReasonRelationships extracts multi-line relationship format correctly
+- ConsolidateRelationships processes facts and stores relationships
+- Fake reasoner returns deterministic relationships for testing
+- OpenAI reasoner parses "From: X | RelationType: Y | To: Z | Confidence: N" format
+- Limit parameter works correctly (processes only N facts)
+- Old facts (>7 days) are skipped
+- Empty namespaces handled gracefully
+- All 6 new tests pass
+- All existing tests still pass (no regressions)
+- CLI command builds and integrates cleanly
+- go vet clean, no lint errors
+
+**What Remains Open:**
+- Task 0017: Confidence-Ranked Retrieval (rank results by relevance + confidence)
+- Relationship extraction from historical facts (currently 7-day window)
+- Relationship DSL or query language
+- Visualization/graph export
+- Bulk relationship imports
+
+---
+
+## 10. Files Changed
+
+### Core Implementation
+- `internal/reasoner/reasoner.go`: Added StructuredRelationship type, ReasonRelationships interface method
+- `internal/reasoner/openai.go`: Implemented ReasonRelationships with multi-line parsing
+- `internal/reasoner/fake.go`: Implemented ReasonRelationships for testing
+- `internal/memory/memory.go`: Added ConsolidateRelationships and updateRelationshipConfidence methods
+- `cmd/cli/facts_extract_relationships.go`: New CLI command handler
+- `cmd/cli/main.go`: Registered extract-relationships command
+
+### Tests
+- `internal/memory/memory_test.go`: Added 6 unit tests covering extraction, parsing, limits, old facts, empty namespaces
+
+### Documentation
+- `docs/tasks/0016-semantic-consolidation.md`: Full task spec with reasoning and acceptance criteria
