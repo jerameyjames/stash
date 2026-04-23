@@ -3440,3 +3440,237 @@ func TestConsolidateRelationships_OldFactsIgnored(t *testing.T) {
 		t.Errorf("Expected 2 relationships from recent fact only, got %d", count)
 	}
 }
+
+// Phase 3: Confidence-Ranked Retrieval
+
+func TestRecallFactsRanked_HighConfidenceFirst(t *testing.T) {
+	mem, cleanup := startMemory(t)
+	defer cleanup()
+
+	// Create two facts with same content but different confidences
+	now := time.Now().UTC()
+
+	// Low confidence fact
+	lowConfFactID := uuid.New().String()
+	memMetaLow := map[string]any{
+		"type":              typeFact,
+		"fact_type":         typeFactState,
+		"content":           "Alice works in technology",
+		"created_at":        now.Format(time.RFC3339),
+		"valid_from":        now.Format(time.RFC3339),
+		"valid_until":       nil,
+		"source":            "consolidation",
+		"synthesized_from":  []string{},
+		"confidence":        0.5, // Low confidence
+		"observation_count": 1,
+	}
+
+	recordLow := store.Record{
+		ID:        lowConfFactID,
+		Namespace: "test",
+		Content:   "Alice works in technology",
+		Vectors: map[string]store.Vector{
+			"fake": {
+				Values: []float32{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8},
+				Model:  "fake",
+			},
+		},
+		Metadata: map[string]any{
+			"_memory": memMetaLow,
+		},
+	}
+
+	// High confidence fact
+	highConfFactID := uuid.New().String()
+	memMetaHigh := map[string]any{
+		"type":              typeFact,
+		"fact_type":         typeFactState,
+		"content":           "Alice works in software",
+		"created_at":        now.Format(time.RFC3339),
+		"valid_from":        now.Format(time.RFC3339),
+		"valid_until":       nil,
+		"source":            "consolidation",
+		"synthesized_from":  []string{},
+		"confidence":        0.9, // High confidence
+		"observation_count": 10,
+	}
+
+	recordHigh := store.Record{
+		ID:        highConfFactID,
+		Namespace: "test",
+		Content:   "Alice works in software",
+		Vectors: map[string]store.Vector{
+			"fake": {
+				Values: []float32{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8},
+				Model:  "fake",
+			},
+		},
+		Metadata: map[string]any{
+			"_memory": memMetaHigh,
+		},
+	}
+
+	// Store both facts
+	err := mem.store.Put(context.Background(), recordLow)
+	if err != nil {
+		t.Fatalf("Failed to store low-confidence fact: %v", err)
+	}
+
+	err = mem.store.Put(context.Background(), recordHigh)
+	if err != nil {
+		t.Fatalf("Failed to store high-confidence fact: %v", err)
+	}
+
+	// Recall with ranking
+	facts, err := mem.RecallFactsRanked(context.Background(), "test", "Alice work", 10)
+	if err != nil {
+		t.Fatalf("RecallFactsRanked failed: %v", err)
+	}
+
+	if len(facts) < 2 {
+		t.Errorf("Expected at least 2 facts, got %d", len(facts))
+		return
+	}
+
+	// High confidence fact should rank first
+	if facts[0].Confidence < facts[1].Confidence {
+		t.Errorf("Expected high-confidence fact first, but got: %v then %v", facts[0].Confidence, facts[1].Confidence)
+	}
+}
+
+func TestRecallFactsRanked_RelevanceConfidenceBalance(t *testing.T) {
+	mem, cleanup := startMemory(t)
+	defer cleanup()
+
+	now := time.Now().UTC()
+
+	// Create facts
+	for i := 0; i < 2; i++ {
+		factID := uuid.New().String()
+		conf := 0.5 + float32(i)*0.2 // 0.5, 0.7
+		content := "fact content"
+		if i%2 == 0 {
+			content = "very relevant content for query" // More relevant
+		}
+
+		memMeta := map[string]any{
+			"type":              typeFact,
+			"fact_type":         typeFactState,
+			"content":           content,
+			"created_at":        now.Format(time.RFC3339),
+			"valid_from":        now.Format(time.RFC3339),
+			"valid_until":       nil,
+			"source":            "consolidation",
+			"synthesized_from":  []string{},
+			"confidence":        conf,
+			"observation_count": 1,
+		}
+
+		record := store.Record{
+			ID:        factID,
+			Namespace: "test",
+			Content:   content,
+			Vectors: map[string]store.Vector{
+				"fake": {
+					Values: []float32{0.1 + float32(i)*0.01, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8},
+					Model:  "fake",
+				},
+			},
+			Metadata: map[string]any{
+				"_memory": memMeta,
+			},
+		}
+
+		err := mem.store.Put(context.Background(), record)
+		if err != nil {
+			t.Fatalf("Failed to store fact %d: %v", i, err)
+		}
+	}
+
+	// Query
+	facts, err := mem.RecallFactsRanked(context.Background(), "test", "query", 10)
+	if err != nil {
+		t.Fatalf("RecallFactsRanked failed: %v", err)
+	}
+
+	if len(facts) == 0 {
+		t.Errorf("Expected facts, got none")
+		return
+	}
+
+	// Score should be in valid range and reflect balance
+	for _, fact := range facts {
+		if fact.Score < 0 || fact.Score > 1 {
+			t.Errorf("Score out of range [0,1]: %v", fact.Score)
+		}
+	}
+}
+
+func TestRecallFactsRanked_LimitRespected(t *testing.T) {
+	mem, cleanup := startMemory(t)
+	defer cleanup()
+
+	now := time.Now().UTC()
+
+	// Create 5 facts
+	for i := 0; i < 5; i++ {
+		factID := uuid.New().String()
+		memMeta := map[string]any{
+			"type":              typeFact,
+			"fact_type":         typeFactState,
+			"content":           fmt.Sprintf("Fact %d for testing ranking", i),
+			"created_at":        now.Format(time.RFC3339),
+			"valid_from":        now.Format(time.RFC3339),
+			"valid_until":       nil,
+			"source":            "consolidation",
+			"synthesized_from":  []string{},
+			"confidence":        float64(0.5 + float32(i)*0.08),
+			"observation_count": 1,
+		}
+
+		record := store.Record{
+			ID:        factID,
+			Namespace: "test",
+			Content:   fmt.Sprintf("Fact %d for testing", i),
+			Vectors: map[string]store.Vector{
+				"fake": {
+					Values: []float32{0.1 + float32(i)*0.01, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8},
+					Model:  "fake",
+				},
+			},
+			Metadata: map[string]any{
+				"_memory": memMeta,
+			},
+		}
+
+		err := mem.store.Put(context.Background(), record)
+		if err != nil {
+			t.Fatalf("Failed to store fact %d: %v", i, err)
+		}
+	}
+
+	// Query with limit=2
+	facts, err := mem.RecallFactsRanked(context.Background(), "test", "fact", 2)
+	if err != nil {
+		t.Fatalf("RecallFactsRanked failed: %v", err)
+	}
+
+	if len(facts) != 2 {
+		t.Errorf("Expected exactly 2 results with limit=2, got %d", len(facts))
+	}
+}
+
+func TestRecallFactsRanked_EmptyNamespace(t *testing.T) {
+	mem, cleanup := startMemory(t)
+	defer cleanup()
+
+	// Query empty namespace
+	facts, err := mem.RecallFactsRanked(context.Background(), "empty", "anything", 10)
+	if err != nil {
+		t.Fatalf("RecallFactsRanked failed: %v", err)
+	}
+
+	if len(facts) != 0 {
+		t.Errorf("Expected 0 facts from empty namespace, got %d", len(facts))
+	}
+}

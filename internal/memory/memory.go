@@ -1518,6 +1518,82 @@ func (m *Memory) GetPointInTimeFacts(ctx context.Context, namespace string) ([]F
 	return m.QueryFactsByType(ctx, namespace, typeFactPointInTime)
 }
 
+// RecallFactsRanked retrieves facts ranked by combined relevance and confidence score.
+// Uses formula: score = (relevance * 0.6) + (confidence * 0.4)
+// Returns facts sorted by final score descending.
+// limit must be > 0.
+func (m *Memory) RecallFactsRanked(ctx context.Context, namespace, query string, limit int) ([]Fact, error) {
+	if limit <= 0 {
+		return nil, ErrInvalidLimit
+	}
+
+	// Embed the query
+	vec, err := m.embedder.Embed(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	// Search for facts using vector similarity
+	results, err := m.store.Search(ctx, store.Query{
+		Namespaces: []string{namespace},
+		Vector:     vec,
+		VectorName: m.embedder.Model(),
+		TopK:       limit * 2, // Fetch more to rerank
+		Filter: &store.Predicate{
+			Field: "metadata._memory.type",
+			Op:    store.OpEq,
+			Value: typeFact,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract facts and compute combined scores
+	type rankedFact struct {
+		fact  Fact
+		score float32
+	}
+
+	var ranked []rankedFact
+	for _, result := range results {
+		fact, err := FactFromRecord(&result.Record)
+		if err != nil {
+			continue
+		}
+
+		// Combined score: 60% relevance, 40% confidence
+		relevance := result.Score
+		confidence := fact.Confidence
+
+		combinedScore := (relevance * 0.6) + (confidence * 0.4)
+
+		ranked = append(ranked, rankedFact{
+			fact:  *fact,
+			score: combinedScore,
+		})
+	}
+
+	// Sort by combined score descending
+	sort.Slice(ranked, func(i, j int) bool {
+		return ranked[i].score > ranked[j].score
+	})
+
+	// Return top limit facts
+	if len(ranked) > limit {
+		ranked = ranked[:limit]
+	}
+
+	facts := make([]Fact, len(ranked))
+	for i, rf := range ranked {
+		// Store score for display
+		rf.fact.Score = rf.score
+		facts[i] = rf.fact
+	}
+
+	return facts, nil
+}
+
 // Phase 3: Entity Relationships (Knowledge Graph)
 
 // StoreRelationship creates a directed edge in the knowledge graph.

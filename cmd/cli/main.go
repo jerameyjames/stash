@@ -237,6 +237,28 @@ func main() {
 						},
 					},
 					{
+						Name:    "recall",
+						Aliases: []string{"search"},
+						Usage:   "Search facts by semantic similarity with optional confidence ranking",
+						Action:  factsRecallCmd,
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:  "namespace",
+								Usage: "Namespace to search (optional)",
+							},
+							&cli.IntFlag{
+								Name:  "limit",
+								Usage: "Maximum number of results",
+								Value: 10,
+							},
+							&cli.BoolFlag{
+								Name:  "ranked",
+								Usage: "Use confidence-ranked retrieval (combined relevance + confidence)",
+								Value: false,
+							},
+						},
+					},
+					{
 						Name:   "relationships",
 						Usage:  "Show incoming and outgoing relationships for an entity",
 						Action: relationshipsCmd,
