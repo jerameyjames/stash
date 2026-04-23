@@ -283,3 +283,74 @@ type DateRange struct {
 	From time.Time  `json:"from"`
 	To   *time.Time `json:"to,omitempty"`
 }
+
+// Relationship represents a directed edge in the knowledge graph.
+// Connects two entities via a typed relationship (works_at, located_in, etc).
+// Stored as a store.Record with _memory.type = "relationship".
+type Relationship struct {
+	ID           string    `json:"id"`              // UUID
+	Namespace    string    `json:"namespace"`       // same as related facts
+	FromEntity   string    `json:"from_entity"`     // source entity
+	RelationType string    `json:"relationship_type"` // e.g., "works_at", "located_in"
+	ToEntity     string    `json:"to_entity"`       // target entity
+	Source       string    `json:"source"`          // "consolidation", "user", etc.
+	Confidence   float32   `json:"confidence"`      // how sure we are of this relationship
+	CreatedAt    time.Time `json:"created_at"`      // when relationship was created
+	FactID       string    `json:"fact_id,omitempty"` // which fact this came from (optional)
+}
+
+// RelationshipFromRecord extracts a Relationship from a store.Record.
+// Returns error if record type is not "relationship" or required fields are missing.
+func RelationshipFromRecord(r *store.Record) (*Relationship, error) {
+	memMeta, ok := r.Metadata["_memory"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("record metadata missing _memory field")
+	}
+
+	recType, ok := memMeta["type"].(string)
+	if !ok || recType != "relationship" {
+		return nil, fmt.Errorf("record is not a relationship (type=%q)", recType)
+	}
+
+	// Extract required fields
+	fromEntity, _ := memMeta["from_entity"].(string)
+	relationType, _ := memMeta["relationship_type"].(string)
+	toEntity, _ := memMeta["to_entity"].(string)
+
+	if fromEntity == "" || relationType == "" || toEntity == "" {
+		return nil, fmt.Errorf("relationship missing required fields: from_entity=%q, relationship_type=%q, to_entity=%q",
+			fromEntity, relationType, toEntity)
+	}
+
+	// Extract timestamps
+	createdAt := time.Now()
+	if ts, ok := memMeta["created_at"].(string); ok {
+		if parsed, err := time.Parse(time.RFC3339, ts); err == nil {
+			createdAt = parsed
+		}
+	}
+
+	source, _ := memMeta["source"].(string)
+	if source == "" {
+		source = "unknown"
+	}
+
+	confidence := float32(0.5)
+	if conf, ok := memMeta["confidence"].(float64); ok {
+		confidence = float32(conf)
+	}
+
+	factID, _ := memMeta["fact_id"].(string)
+
+	return &Relationship{
+		ID:           r.ID,
+		Namespace:    r.Namespace,
+		FromEntity:   fromEntity,
+		RelationType: relationType,
+		ToEntity:     toEntity,
+		Source:       source,
+		Confidence:   confidence,
+		CreatedAt:    createdAt,
+		FactID:       factID,
+	}, nil
+}

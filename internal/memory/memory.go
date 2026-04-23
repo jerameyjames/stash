@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	contextID        = "_memory.context"
-	contextDuration  = time.Hour
-	typeEvent        = "event"
-	typeContext      = "context"
-	typeFact         = "fact"
-	typeRelation     = "relationship"
+	contextID           = "_memory.context"
+	contextDuration     = time.Hour
+	typeEvent           = "event"
+	typeContext         = "context"
+	typeFact            = "fact"
+	typeRelationship    = "relationship"
 	typeFactAtemporal   = "atemporal"
 	typeFactState       = "state"
 	typeFactPointInTime = "point-in-time"
@@ -1516,4 +1516,226 @@ func (m *Memory) GetStateFactsFor(ctx context.Context, namespace, entity string)
 // GetPointInTimeFacts returns all point-in-time facts (snapshots).
 func (m *Memory) GetPointInTimeFacts(ctx context.Context, namespace string) ([]Fact, error) {
 	return m.QueryFactsByType(ctx, namespace, typeFactPointInTime)
+}
+
+// Phase 3: Entity Relationships (Knowledge Graph)
+
+// StoreRelationship creates a directed edge in the knowledge graph.
+// fromEntity → relationType → toEntity
+func (m *Memory) StoreRelationship(ctx context.Context, namespace, fromEntity, relationType, toEntity string) error {
+	if fromEntity == "" || relationType == "" || toEntity == "" {
+		return fmt.Errorf("relationship: all fields required (from=%q, type=%q, to=%q)", fromEntity, relationType, toEntity)
+	}
+
+	relID := uuid.New().String()
+	now := time.Now().UTC()
+
+	memMeta := map[string]any{
+		"type":              typeRelationship,
+		"from_entity":       fromEntity,
+		"relationship_type": relationType,
+		"to_entity":         toEntity,
+		"source":            "graph",
+		"created_at":        now.Format(time.RFC3339),
+		"confidence":        0.5, // Default confidence for relationships
+	}
+
+	record := store.Record{
+		ID:        relID,
+		Namespace: namespace,
+		Content:   fmt.Sprintf("%s -%s-> %s", fromEntity, relationType, toEntity),
+		Metadata: map[string]any{
+			"_memory": memMeta,
+		},
+	}
+
+	return m.store.Put(ctx, record)
+}
+
+// GetRelationshipsFrom returns all outgoing relationships from an entity.
+func (m *Memory) GetRelationshipsFrom(ctx context.Context, namespace, entity string) ([]Relationship, error) {
+	filter := store.Filter{
+		Namespaces: []string{namespace},
+		Where: &store.Predicate{
+			Field: "metadata._memory.type",
+			Op:    store.OpEq,
+			Value: typeRelationship,
+		},
+	}
+
+	records, err := m.store.List(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("query relationships: %w", err)
+	}
+
+	var result []Relationship
+	for i := range records {
+		rel, err := RelationshipFromRecord(&records[i])
+		if err != nil {
+			continue
+		}
+		if rel.FromEntity == entity {
+			result = append(result, *rel)
+		}
+	}
+
+	return result, nil
+}
+
+// GetRelationshipsTo returns all incoming relationships to an entity.
+func (m *Memory) GetRelationshipsTo(ctx context.Context, namespace, entity string) ([]Relationship, error) {
+	filter := store.Filter{
+		Namespaces: []string{namespace},
+		Where: &store.Predicate{
+			Field: "metadata._memory.type",
+			Op:    store.OpEq,
+			Value: typeRelationship,
+		},
+	}
+
+	records, err := m.store.List(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("query relationships: %w", err)
+	}
+
+	var result []Relationship
+	for i := range records {
+		rel, err := RelationshipFromRecord(&records[i])
+		if err != nil {
+			continue
+		}
+		if rel.ToEntity == entity {
+			result = append(result, *rel)
+		}
+	}
+
+	return result, nil
+}
+
+// TraverseGraph returns all entities reachable from a starting entity within maxDepth hops.
+// Returns a map of entity → relationships from that entity.
+func (m *Memory) TraverseGraph(ctx context.Context, namespace, startEntity string, maxDepth int) (map[string][]Relationship, error) {
+	if maxDepth <= 0 {
+		return map[string][]Relationship{}, nil
+	}
+
+	visited := make(map[string]bool)
+	result := make(map[string][]Relationship)
+	queue := []string{startEntity}
+	depth := 0
+
+	for len(queue) > 0 && depth < maxDepth {
+		nextQueue := []string{}
+		for _, entity := range queue {
+			if visited[entity] {
+				continue
+			}
+			visited[entity] = true
+
+			rels, err := m.GetRelationshipsFrom(ctx, namespace, entity)
+			if err != nil {
+				continue
+			}
+
+			result[entity] = rels
+			for _, rel := range rels {
+				if !visited[rel.ToEntity] {
+					nextQueue = append(nextQueue, rel.ToEntity)
+				}
+			}
+		}
+
+		queue = nextQueue
+		depth++
+	}
+
+	return result, nil
+}
+
+// FindPath finds a path between two entities in the knowledge graph.
+// Returns a list of relationships that form a path from 'from' to 'to'.
+func (m *Memory) FindPath(ctx context.Context, namespace, from, to string, maxDepth int) ([]Relationship, error) {
+	if from == "" || to == "" {
+		return nil, fmt.Errorf("findpath: from and to required")
+	}
+
+	if from == to {
+		return []Relationship{}, nil
+	}
+
+	// BFS to find shortest path
+	visited := make(map[string]bool)
+	queue := []map[string]any{
+		{"entity": from, "path": []Relationship{}},
+	}
+	depth := 0
+
+	for len(queue) > 0 && depth < maxDepth {
+		nextQueue := []map[string]any{}
+
+		for _, item := range queue {
+			entity := item["entity"].(string)
+			path := item["path"].([]Relationship)
+
+			if visited[entity] {
+				continue
+			}
+			visited[entity] = true
+
+			rels, err := m.GetRelationshipsFrom(ctx, namespace, entity)
+			if err != nil {
+				continue
+			}
+
+			for _, rel := range rels {
+				if rel.ToEntity == to {
+					// Found path
+					return append(path, rel), nil
+				}
+
+				if !visited[rel.ToEntity] {
+					newPath := make([]Relationship, len(path)+1)
+					copy(newPath, path)
+					newPath[len(path)] = rel
+					nextQueue = append(nextQueue, map[string]any{
+						"entity": rel.ToEntity,
+						"path":   newPath,
+					})
+				}
+			}
+		}
+
+		queue = nextQueue
+		depth++
+	}
+
+	return nil, fmt.Errorf("no path found between %q and %q within %d hops", from, to, maxDepth)
+}
+
+// GetAllRelationships returns all relationships in a namespace.
+func (m *Memory) GetAllRelationships(ctx context.Context, namespace string) ([]Relationship, error) {
+	filter := store.Filter{
+		Namespaces: []string{namespace},
+		Where: &store.Predicate{
+			Field: "metadata._memory.type",
+			Op:    store.OpEq,
+			Value: typeRelationship,
+		},
+	}
+
+	records, err := m.store.List(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("query relationships: %w", err)
+	}
+
+	var result []Relationship
+	for i := range records {
+		rel, err := RelationshipFromRecord(&records[i])
+		if err != nil {
+			continue
+		}
+		result = append(result, *rel)
+	}
+
+	return result, nil
 }

@@ -2996,3 +2996,177 @@ func TestGetAtemporalFacts(t *testing.T) {
 		}
 	}
 }
+
+// Phase 3: Entity Relationships / Knowledge Graph
+
+func TestStoreRelationship(t *testing.T) {
+	mem, cleanup := startMemory(t)
+	defer cleanup()
+
+	err := mem.StoreRelationship(context.Background(), "test", "alice", "works_at", "techcorp")
+	if err != nil {
+		t.Fatalf("StoreRelationship failed: %v", err)
+	}
+
+	// Verify it was stored
+	rels, err := mem.GetRelationshipsFrom(context.Background(), "test", "alice")
+	if err != nil {
+		t.Fatalf("GetRelationshipsFrom failed: %v", err)
+	}
+
+	if len(rels) != 1 {
+		t.Errorf("Expected 1 relationship, got %d", len(rels))
+		return
+	}
+
+	if rels[0].ToEntity != "techcorp" {
+		t.Errorf("Expected ToEntity=techcorp, got %v", rels[0].ToEntity)
+	}
+	if rels[0].RelationType != "works_at" {
+		t.Errorf("Expected RelationType=works_at, got %v", rels[0].RelationType)
+	}
+}
+
+func TestGetRelationshipsFrom(t *testing.T) {
+	mem, cleanup := startMemory(t)
+	defer cleanup()
+
+	// Store multiple relationships from Alice
+	mem.StoreRelationship(context.Background(), "test", "alice", "works_at", "techcorp")
+	mem.StoreRelationship(context.Background(), "test", "alice", "located_in", "paris")
+	mem.StoreRelationship(context.Background(), "test", "bob", "works_at", "startups")
+
+	// Query relationships from Alice
+	rels, err := mem.GetRelationshipsFrom(context.Background(), "test", "alice")
+	if err != nil {
+		t.Fatalf("GetRelationshipsFrom failed: %v", err)
+	}
+
+	if len(rels) != 2 {
+		t.Errorf("Expected 2 relationships from alice, got %d", len(rels))
+	}
+
+	// Verify Bob's relationships are not included
+	for _, rel := range rels {
+		if rel.FromEntity != "alice" {
+			t.Errorf("Got relationship from wrong entity: %v", rel.FromEntity)
+		}
+	}
+}
+
+func TestGetRelationshipsTo(t *testing.T) {
+	mem, cleanup := startMemory(t)
+	defer cleanup()
+
+	// Store relationships pointing to TechCorp
+	mem.StoreRelationship(context.Background(), "test", "alice", "works_at", "techcorp")
+	mem.StoreRelationship(context.Background(), "test", "bob", "works_at", "techcorp")
+	mem.StoreRelationship(context.Background(), "test", "charlie", "founded", "startups")
+
+	// Query relationships to TechCorp
+	rels, err := mem.GetRelationshipsTo(context.Background(), "test", "techcorp")
+	if err != nil {
+		t.Fatalf("GetRelationshipsTo failed: %v", err)
+	}
+
+	if len(rels) != 2 {
+		t.Errorf("Expected 2 relationships to techcorp, got %d", len(rels))
+	}
+
+	for _, rel := range rels {
+		if rel.ToEntity != "techcorp" {
+			t.Errorf("Got relationship to wrong entity: %v", rel.ToEntity)
+		}
+	}
+}
+
+func TestTraverseGraph(t *testing.T) {
+	mem, cleanup := startMemory(t)
+	defer cleanup()
+
+	// Build a small graph: alice → works_at → techcorp → located_in → paris
+	mem.StoreRelationship(context.Background(), "test", "alice", "works_at", "techcorp")
+	mem.StoreRelationship(context.Background(), "test", "techcorp", "located_in", "paris")
+	mem.StoreRelationship(context.Background(), "test", "paris", "located_in", "france")
+
+	// Traverse from Alice with depth 3
+	graph, err := mem.TraverseGraph(context.Background(), "test", "alice", 3)
+	if err != nil {
+		t.Fatalf("TraverseGraph failed: %v", err)
+	}
+
+	// Should include alice,techcorp, paris, france
+	expectedEntities := map[string]bool{
+		"alice":    true,
+		"techcorp": true,
+		"paris":    true,
+	}
+
+	for entity := range expectedEntities {
+		if _, ok := graph[entity]; !ok {
+			t.Errorf("Expected entity %q in graph, got %v", entity, graph)
+		}
+	}
+}
+
+func TestFindPath(t *testing.T) {
+	mem, cleanup := startMemory(t)
+	defer cleanup()
+
+	// Build a path: alice → works_at → techcorp → located_in → paris
+	mem.StoreRelationship(context.Background(), "test", "alice", "works_at", "techcorp")
+	mem.StoreRelationship(context.Background(), "test", "techcorp", "located_in", "paris")
+
+	// Find path from alice to paris
+	path, err := mem.FindPath(context.Background(), "test", "alice", "paris", 5)
+	if err != nil {
+		t.Fatalf("FindPath failed: %v", err)
+	}
+
+	if len(path) != 2 {
+		t.Errorf("Expected path of length 2, got %d", len(path))
+	}
+
+	if path[0].FromEntity != "alice" || path[0].ToEntity != "techcorp" {
+		t.Errorf("First hop incorrect: %v → %v", path[0].FromEntity, path[0].ToEntity)
+	}
+
+	if path[1].FromEntity != "techcorp" || path[1].ToEntity != "paris" {
+		t.Errorf("Second hop incorrect: %v → %v", path[1].FromEntity, path[1].ToEntity)
+	}
+}
+
+func TestFindPathNotFound(t *testing.T) {
+	mem, cleanup := startMemory(t)
+	defer cleanup()
+
+	// Create disconnected graph
+	mem.StoreRelationship(context.Background(), "test", "alice", "works_at", "techcorp")
+	mem.StoreRelationship(context.Background(), "test", "bob", "works_at", "startups")
+
+	// Try to find path between disconnected nodes
+	_, err := mem.FindPath(context.Background(), "test", "alice", "bob", 5)
+	if err == nil {
+		t.Error("Expected error for disconnected nodes, got nil")
+	}
+}
+
+func TestGetAllRelationships(t *testing.T) {
+	mem, cleanup := startMemory(t)
+	defer cleanup()
+
+	// Store relationships
+	mem.StoreRelationship(context.Background(), "test", "alice", "works_at", "techcorp")
+	mem.StoreRelationship(context.Background(), "test", "bob", "works_at", "startups")
+	mem.StoreRelationship(context.Background(), "test", "charlie", "located_in", "paris")
+
+	// Get all relationships
+	allRels, err := mem.GetAllRelationships(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("GetAllRelationships failed: %v", err)
+	}
+
+	if len(allRels) != 3 {
+		t.Errorf("Expected 3 relationships total, got %d", len(allRels))
+	}
+}

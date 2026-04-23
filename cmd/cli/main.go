@@ -220,6 +220,43 @@ func main() {
 							},
 						},
 					},
+					{
+						Name:   "relationships",
+						Usage:  "Show incoming and outgoing relationships for an entity",
+						Action: relationshipsCmd,
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:  "namespace",
+								Usage: "Namespace to query (optional)",
+							},
+							&cli.StringFlag{
+								Name:     "entity",
+								Usage:    "Entity name (required)",
+								Required: true,
+							},
+						},
+					},
+					{
+						Name:   "graph",
+						Usage:  "Traverse knowledge graph from an entity",
+						Action: graphCmd,
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:  "namespace",
+								Usage: "Namespace to query (optional)",
+							},
+							&cli.StringFlag{
+								Name:     "entity",
+								Usage:    "Starting entity (required)",
+								Required: true,
+							},
+							&cli.IntFlag{
+								Name:  "depth",
+								Usage: "Maximum traversal depth (default: 1)",
+								Value: 1,
+							},
+						},
+					},
 				},
 			},
 		},
