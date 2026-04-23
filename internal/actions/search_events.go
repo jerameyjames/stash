@@ -5,13 +5,15 @@ import (
 
 	"github.com/alash3al/stash/internal/bootstrap"
 	"github.com/alash3al/stash/internal/memory"
+	"github.com/alash3al/stash/internal/store"
 )
 
 // SearchEventsInput defines the input for searching events.
 type SearchEventsInput struct {
-	Namespaces []string `json:"namespaces"`
-	Query      string   `json:"query"`
-	Limit      int      `json:"limit,omitempty"`
+	Namespaces []string        `json:"namespaces"`
+	Query      string          `json:"query"`
+	Limit      int             `json:"limit,omitempty"`
+	Filter     *store.Predicate `json:"filter,omitempty"`
 }
 
 // SearchEventsOutput defines the output after searching events.
@@ -35,7 +37,14 @@ func SearchEvents(ctx context.Context, c *bootstrap.Context, input SearchEventsI
 		input.Limit = 10 // Default
 	}
 
-	events, err := c.Memory.Recall(ctx, input.Namespaces, input.Query, input.Limit)
+	var events []memory.Event
+	var err error
+
+	if input.Filter != nil {
+		events, err = c.Memory.RecallWhere(ctx, input.Namespaces, input.Query, input.Filter, input.Limit)
+	} else {
+		events, err = c.Memory.Recall(ctx, input.Namespaces, input.Query, input.Limit)
+	}
 	if err != nil {
 		return SearchEventsOutput{}, err
 	}

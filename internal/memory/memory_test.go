@@ -545,3 +545,204 @@ func (e *expiredStore) Migrate(ctx context.Context) error {
 func (e *expiredStore) Close() error {
 	return e.inner.Close()
 }
+
+func TestRecallWhere_WithFilter(t *testing.T) {
+	s, cleanup := startStore(t)
+	defer cleanup()
+
+	mem, err := New(s, embedder.NewFake())
+	if err != nil {
+		t.Fatalf("failed to create memory: %v", err)
+	}
+	defer mem.Close()
+
+	ctx := context.Background()
+
+	// Create events with different metadata
+	_, err = mem.Remember(ctx, "test-ns", "high severity bug", map[string]any{
+		"severity": "high",
+		"component": "api",
+	})
+	if err != nil {
+		t.Fatalf("Remember failed: %v", err)
+	}
+
+	_, err = mem.Remember(ctx, "test-ns", "low priority issue", map[string]any{
+		"severity": "low",
+		"component": "gateway",
+	})
+	if err != nil {
+		t.Fatalf("Remember failed: %v", err)
+	}
+
+	_, err = mem.Remember(ctx, "test-ns", "high priority gateway fix", map[string]any{
+		"severity": "high",
+		"component": "gateway",
+	})
+	if err != nil {
+		t.Fatalf("Remember failed: %v", err)
+	}
+
+	// Test: search with single filter (severity=high)
+	filter := &store.Predicate{
+		Field: "metadata.severity",
+		Op:    store.OpEq,
+		Value: "high",
+	}
+
+	events, err := mem.RecallWhere(ctx, []string{"test-ns"}, "bug", filter, 10)
+	if err != nil {
+		t.Fatalf("RecallWhere failed: %v", err)
+	}
+
+	if len(events) == 0 {
+		t.Fatal("expected events with severity=high, got none")
+	}
+
+	// All returned events should have severity=high in metadata
+	for _, e := range events {
+		if e.Metadata["severity"] != "high" {
+			t.Errorf("expected severity=high, got %v", e.Metadata["severity"])
+		}
+	}
+}
+
+func TestRecallWhere_MultipleFilters(t *testing.T) {
+	s, cleanup := startStore(t)
+	defer cleanup()
+
+	mem, err := New(s, embedder.NewFake())
+	if err != nil {
+		t.Fatalf("failed to create memory: %v", err)
+	}
+	defer mem.Close()
+
+	ctx := context.Background()
+
+	// Create events
+	_, err = mem.Remember(ctx, "test-ns", "high severity api bug", map[string]any{
+		"severity": "high",
+		"component": "api",
+	})
+	if err != nil {
+		t.Fatalf("Remember failed: %v", err)
+	}
+
+	_, err = mem.Remember(ctx, "test-ns", "low severity api issue", map[string]any{
+		"severity": "low",
+		"component": "api",
+	})
+	if err != nil {
+		t.Fatalf("Remember failed: %v", err)
+	}
+
+	_, err = mem.Remember(ctx, "test-ns", "high severity gateway issue", map[string]any{
+		"severity": "high",
+		"component": "gateway",
+	})
+	if err != nil {
+		t.Fatalf("Remember failed: %v", err)
+	}
+
+	// Filter: severity=high AND component=api
+	filter := &store.Predicate{
+		And: []store.Predicate{
+			{
+				Field: "metadata.severity",
+				Op:    store.OpEq,
+				Value: "high",
+			},
+			{
+				Field: "metadata.component",
+				Op:    store.OpEq,
+				Value: "api",
+			},
+		},
+	}
+
+	events, err := mem.RecallWhere(ctx, []string{"test-ns"}, "bug", filter, 10)
+	if err != nil {
+		t.Fatalf("RecallWhere failed: %v", err)
+	}
+
+	if len(events) == 0 {
+		t.Fatal("expected events matching both filters, got none")
+	}
+
+	// All returned events should match both filters
+	for _, e := range events {
+		if e.Metadata["severity"] != "high" {
+			t.Errorf("expected severity=high, got %v", e.Metadata["severity"])
+		}
+		if e.Metadata["component"] != "api" {
+			t.Errorf("expected component=api, got %v", e.Metadata["component"])
+		}
+	}
+}
+
+func TestRecallWhere_NilFilter(t *testing.T) {
+	s, cleanup := startStore(t)
+	defer cleanup()
+
+	mem, err := New(s, embedder.NewFake())
+	if err != nil {
+		t.Fatalf("failed to create memory: %v", err)
+	}
+	defer mem.Close()
+
+	ctx := context.Background()
+
+	// Create multiple events
+	_, err = mem.Remember(ctx, "test-ns", "event one", map[string]any{
+		"severity": "high",
+	})
+	if err != nil {
+		t.Fatalf("Remember failed: %v", err)
+	}
+
+	_, err = mem.Remember(ctx, "test-ns", "event two", map[string]any{
+		"severity": "low",
+	})
+	if err != nil {
+		t.Fatalf("Remember failed: %v", err)
+	}
+
+	// Call RecallWhere with nil filter (should be same as Recall)
+	events, err := mem.RecallWhere(ctx, []string{"test-ns"}, "event", nil, 10)
+	if err != nil {
+		t.Fatalf("RecallWhere with nil filter failed: %v", err)
+	}
+
+	if len(events) != 2 {
+		t.Errorf("expected 2 events, got %d", len(events))
+	}
+}
+
+func TestRecallWhere_InvalidLimit(t *testing.T) {
+	s, cleanup := startStore(t)
+	defer cleanup()
+
+	mem, err := New(s, embedder.NewFake())
+	if err != nil {
+		t.Fatalf("failed to create memory: %v", err)
+	}
+	defer mem.Close()
+
+	ctx := context.Background()
+
+	filter := &store.Predicate{
+		Field: "metadata.severity",
+		Op:    store.OpEq,
+		Value: "high",
+	}
+
+	_, err = mem.RecallWhere(ctx, []string{"test-ns"}, "query", filter, 0)
+	if !errors.Is(err, ErrInvalidLimit) {
+		t.Errorf("expected ErrInvalidLimit, got %v", err)
+	}
+
+	_, err = mem.RecallWhere(ctx, []string{"test-ns"}, "query", filter, -1)
+	if !errors.Is(err, ErrInvalidLimit) {
+		t.Errorf("expected ErrInvalidLimit, got %v", err)
+	}
+}

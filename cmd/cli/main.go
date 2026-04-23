@@ -68,6 +68,10 @@ func main() {
 								Usage: "Maximum number of results",
 								Value: 10,
 							},
+							&cli.StringFlag{
+								Name:  "where",
+								Usage: "Metadata filter in format: field=value,field>=value,... (supports =, !=, <, >, <=, >=)",
+							},
 						},
 					},
 					{

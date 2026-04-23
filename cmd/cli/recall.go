@@ -8,6 +8,7 @@ import (
 
 	"github.com/alash3al/stash/internal/actions"
 	"github.com/alash3al/stash/internal/bootstrap"
+	"github.com/alash3al/stash/internal/store"
 	"github.com/urfave/cli/v3"
 )
 
@@ -28,6 +29,16 @@ func recallCmd(ctx context.Context, cmd *cli.Command) error {
 		limit = 10 // Default from action
 	}
 
+	whereStr := cmd.String("where")
+	var filter *store.Predicate
+	if whereStr != "" {
+		var err error
+		filter, err = actions.ParseFilterDSL(whereStr)
+		if err != nil {
+			return fmt.Errorf("invalid --where flag: %w", err)
+		}
+	}
+
 	bc, ok := cmd.Root().Metadata["bootstrapCtx"].(*bootstrap.Context)
 	if !ok {
 		return fmt.Errorf("bootstrap context not available")
@@ -37,6 +48,7 @@ func recallCmd(ctx context.Context, cmd *cli.Command) error {
 		Namespaces: namespaces,
 		Query:      query,
 		Limit:      limit,
+		Filter:     filter,
 	})
 	if err != nil {
 		return err

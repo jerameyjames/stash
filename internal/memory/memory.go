@@ -139,6 +139,61 @@ func (m *Memory) Recall(ctx context.Context, namespaces []string, query string, 
 	return events, nil
 }
 
+// RecallWhere retrieves events matching both semantic similarity and structured metadata.
+// Combines vector search with optional predicate filtering.
+// If filter is nil, behaves identically to Recall().
+// Returns at most limit events ordered by relevance (score descending).
+// limit must be > 0.
+func (m *Memory) RecallWhere(ctx context.Context, namespaces []string, query string, filter *store.Predicate, limit int) ([]Event, error) {
+	if limit <= 0 {
+		return nil, ErrInvalidLimit
+	}
+
+	vec, err := m.embedder.Embed(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build a compound predicate: event type AND user filter
+	typeFilter := &store.Predicate{
+		Field: "metadata._memory.type",
+		Op:    store.OpEq,
+		Value: typeEvent,
+	}
+
+	var combinedFilter *store.Predicate
+	if filter == nil {
+		combinedFilter = typeFilter
+	} else {
+		// AND together: type=event AND user_filter
+		combinedFilter = &store.Predicate{
+			And: []store.Predicate{*typeFilter, *filter},
+		}
+	}
+
+	results, err := m.store.Search(ctx, store.Query{
+		Namespaces: namespaces,
+		Vector:     vec,
+		VectorName: m.embedder.Model(),
+		TopK:       limit,
+		Filter:     combinedFilter,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]Event, 0, len(results))
+	for _, result := range results {
+		e, err := recordToEvent(result.Record, result.Score)
+		if err != nil {
+			continue
+		}
+		events = append(events, e)
+	}
+
+	return events, nil
+}
+
 // WorkingMemory returns the current working memory state.
 // Creates a new working memory if none exists.
 // Replaces the working memory (lazy) if the existing one has expired.
