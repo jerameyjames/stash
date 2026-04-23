@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/alash3al/stash/internal/embedder"
+	"github.com/alash3al/stash/internal/reasoner"
 	"github.com/alash3al/stash/internal/store"
 	"github.com/google/uuid"
 )
@@ -18,10 +20,13 @@ const (
 	contextDuration = time.Hour
 	typeEvent       = "event"
 	typeContext     = "context"
+	typeFact        = "fact"
+	typeRelation    = "relationship"
 )
 
 var errMissingStore = errors.New("memory: store is required")
 var errMissingEmbedder = errors.New("memory: embedder is required")
+var errMissingReasoner = errors.New("memory: reasoner is required")
 
 // Memory is the core memory system.
 // Concrete type — not an interface.
@@ -29,20 +34,25 @@ var errMissingEmbedder = errors.New("memory: embedder is required")
 type Memory struct {
 	store    store.Store
 	embedder embedder.Embedder
+	reasoner reasoner.Reasoner
 }
 
-// New creates a Memory using the provided store and embedder.
-// Both are required. Returns error if either is nil.
-func New(s store.Store, e embedder.Embedder) (*Memory, error) {
+// New creates a Memory using the provided store, embedder, and reasoner.
+// All three are required. Returns error if any is nil.
+func New(s store.Store, e embedder.Embedder, r reasoner.Reasoner) (*Memory, error) {
 	if s == nil {
 		return nil, errMissingStore
 	}
 	if e == nil {
 		return nil, errMissingEmbedder
 	}
+	if r == nil {
+		return nil, errMissingReasoner
+	}
 	return &Memory{
 		store:    s,
 		embedder: e,
+		reasoner: r,
 	}, nil
 }
 
@@ -830,4 +840,228 @@ func parseStringSlice(v any) []string {
 		return result
 	}
 	return nil
+}
+
+// ConsolidateRecent synthesizes recent events into durable facts.
+// Groups similar events by semantic clustering, then calls reasoner to synthesize each group.
+// timeWindow: how far back to look (e.g., 7*24*time.Hour for last week)
+// limit: max number of facts to synthesize in this pass (0 = no limit)
+// Returns IDs of newly created facts.
+// Errors if Reasoner is nil or if synthesis fails.
+func (m *Memory) ConsolidateRecent(
+	ctx context.Context,
+	namespace string,
+	timeWindow time.Duration,
+	limit int,
+) ([]string, error) {
+	if m.reasoner == nil {
+		return nil, fmt.Errorf("consolidation: reasoner not configured")
+	}
+
+	// Query recent events within timeWindow
+	cutoff := time.Now().UTC().Add(-timeWindow)
+	eventRecords, err := m.queryRecentEventRecords(ctx, namespace, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("query recent events: %w", err)
+	}
+
+	if len(eventRecords) < 2 {
+		return []string{}, nil // Nothing to consolidate
+	}
+
+	// Cluster by semantic similarity
+	clusters := m.clusterRecordsBySimilarity(eventRecords, 0.85) // 0.85 similarity = 0.15 distance
+
+	if len(clusters) > limit && limit > 0 {
+		// Keep only top `limit` clusters (by size)
+		clusters = clusters[:limit]
+	}
+
+	var factIDs []string
+
+	// Synthesize each cluster
+	for _, cluster := range clusters {
+		texts := make([]string, len(cluster))
+		eventIDs := make([]string, len(cluster))
+		for i, rec := range cluster {
+			texts[i] = rec.Content
+			eventIDs[i] = rec.ID
+		}
+
+		// Call reasoner to synthesize
+		factText, err := m.reasoner.Reason(ctx, texts)
+		if err != nil {
+			return factIDs, fmt.Errorf("synthesize cluster: %w", err)
+		}
+
+		// Check for conflicts with existing facts (simple heuristic)
+		conflicts := []string{} // TODO: implement conflict detection in future task
+		_ = conflicts           // Not blocking synthesis yet
+
+		// Store fact as Record
+		factID := uuid.New().String()
+		now := time.Now().UTC()
+
+		memMeta := map[string]any{
+			"type":              typeFact,
+			"content":           factText,
+			"created_at":        now.Format(time.RFC3339),
+			"synthesized_from":  eventIDs,
+		}
+		if len(conflicts) > 0 {
+			memMeta["conflict_with"] = conflicts
+		}
+
+		recordMeta := map[string]any{
+			"_memory": memMeta,
+		}
+
+		// Embed the fact
+		vec, err := m.embedder.Embed(ctx, factText)
+		if err != nil {
+			return factIDs, fmt.Errorf("embed fact: %w", err)
+		}
+
+		record := store.Record{
+			ID:        factID,
+			Namespace: namespace,
+			Content:   factText,
+			Vectors: map[string]store.Vector{
+				m.embedder.Model(): {
+					Values: vec,
+					Model:  m.embedder.Model(),
+				},
+			},
+			Metadata: recordMeta,
+		}
+
+		if err := m.store.Put(ctx, record); err != nil {
+			return factIDs, fmt.Errorf("store fact: %w", err)
+		}
+
+		factIDs = append(factIDs, factID)
+	}
+
+	return factIDs, nil
+}
+
+// queryRecentEventRecords retrieves event Records from the past `since` timestamp.
+// Filters by namespace and type=event, excludes expired events.
+func (m *Memory) queryRecentEventRecords(ctx context.Context, namespace string, since time.Time) ([]store.Record, error) {
+	// Query events using List with a filter for type=event
+	filter := store.Filter{
+		Namespaces: []string{namespace},
+		Where: &store.Predicate{
+			Field: "metadata._memory.type",
+			Op:    store.OpEq,
+			Value: typeEvent,
+		},
+	}
+
+	records, err := m.store.List(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []store.Record
+	now := time.Now().UTC()
+	for i := range records {
+		r := &records[i]
+
+		// Parse record into Event to validate and extract timestamp/expiry
+		evt, err := recordToEvent(*r, 0)
+		if err != nil {
+			continue // Skip records that can't be parsed as events
+		}
+
+		// Skip expired events
+		if evt.ExpiresAt != nil && evt.ExpiresAt.Before(now) {
+			continue
+		}
+
+		// Skip events outside the time window
+		if evt.Timestamp.Before(since) {
+			continue
+		}
+
+		result = append(result, *r)
+	}
+
+	return result, nil
+}
+
+// clusterRecordsBySimilarity groups records by cosine similarity of their embeddings.
+// Uses greedy clustering: first record seeds a cluster, subsequent similar records join.
+// threshold: minimum cosine similarity (0.0-1.0) for records to be in the same cluster.
+func (m *Memory) clusterRecordsBySimilarity(records []store.Record, threshold float64) [][]store.Record {
+	if len(records) == 0 {
+		return [][]store.Record{}
+	}
+
+	// Use embedder's model as the reference
+	modelKey := m.embedder.Model()
+
+	clusters := [][]store.Record{}
+	used := make(map[string]bool)
+
+	for i := range records {
+		r := &records[i]
+		if used[r.ID] {
+			continue
+		}
+
+		// Get seed record vector
+		seedVec, ok := r.Vectors[modelKey]
+		if !ok {
+			continue // Skip records without vector in this model
+		}
+
+		cluster := []store.Record{*r}
+		used[r.ID] = true
+
+		// Find similar records
+		for j := range records {
+			other := &records[j]
+			if used[other.ID] {
+				continue
+			}
+
+			otherVec, ok := other.Vectors[modelKey]
+			if !ok {
+				continue
+			}
+
+			sim := cosineSimilarity(seedVec.Values, otherVec.Values)
+			if sim > threshold {
+				cluster = append(cluster, *other)
+				used[other.ID] = true
+			}
+		}
+
+		clusters = append(clusters, cluster)
+	}
+
+	return clusters
+}
+
+// cosineSimilarity computes cosine similarity between two vectors.
+// Result in range [0.0, 1.0]. Higher = more similar.
+func cosineSimilarity(a, b []float32) float64 {
+	if len(a) != len(b) || len(a) == 0 {
+		return 0
+	}
+
+	var dot, normA, normB float64
+	for i := range a {
+		fa, fb := float64(a[i]), float64(b[i])
+		dot += fa * fb
+		normA += fa * fa
+		normB += fb * fb
+	}
+
+	if normA == 0 || normB == 0 {
+		return 0
+	}
+
+	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
 }

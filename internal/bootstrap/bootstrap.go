@@ -10,17 +10,19 @@ import (
 	"github.com/alash3al/stash/internal/config"
 	"github.com/alash3al/stash/internal/embedder"
 	"github.com/alash3al/stash/internal/memory"
+	"github.com/alash3al/stash/internal/reasoner"
 	"github.com/alash3al/stash/internal/store"
 	"github.com/alash3al/stash/internal/store/mapdb"
 	"github.com/alash3al/stash/internal/store/postgres"
 )
 
 type Context struct {
-	Config  *config.Config
-	Store   store.Store
+	Config   *config.Config
+	Store    store.Store
 	Embedder embedder.Embedder
-	Memory  *memory.Memory
-	Logger  *slog.Logger
+	Reasoner reasoner.Reasoner
+	Memory   *memory.Memory
+	Logger   *slog.Logger
 }
 
 func MustNew(ctx context.Context) *Context {
@@ -78,7 +80,13 @@ lvl := slog.LevelInfo
 		return nil, fmt.Errorf("vector dimension mismatch: embedder returns %d, config expects %d", emb.Dims(), cfg.VectorDim)
 	}
 
-	mem, err := memory.New(str, emb)
+	reas, err := buildReasoner(cfg)
+	if err != nil {
+		str.Close()
+		return nil, fmt.Errorf("build reasoner: %w", err)
+	}
+
+	mem, err := memory.New(str, emb, reas)
 	if err != nil {
 		str.Close()
 		return nil, fmt.Errorf("build memory: %w", err)
@@ -88,6 +96,7 @@ lvl := slog.LevelInfo
 		Config:   cfg,
 		Store:    str,
 		Embedder: emb,
+		Reasoner: reas,
 		Memory:   mem,
 		Logger:   logger,
 	}, nil
@@ -156,5 +165,31 @@ func buildEmbedder(cfg *config.Config) (embedder.Embedder, error) {
 		return embedder.NewFake(), nil
 	default:
 		return nil, fmt.Errorf("unknown embedder driver: %q", cfg.EmbedderDriver)
+	}
+}
+
+func buildReasoner(cfg *config.Config) (reasoner.Reasoner, error) {
+	// Reasoner is optional — if neither driver nor model is set, use Fake
+	if cfg.ReasonerDriver == "" && cfg.ReasonerModel == "" {
+		return reasoner.NewFake("fake", "fake"), nil
+	}
+
+	// Both must be set if either is set
+	if cfg.ReasonerDriver == "" || cfg.ReasonerModel == "" {
+		return nil, fmt.Errorf("reasoner: STASH_REASONER_DRIVER and STASH_REASONER_MODEL must both be set")
+	}
+
+	switch cfg.ReasonerDriver {
+	case "openai":
+		return reasoner.NewOpenAI(
+			cfg.OpenAIBaseURL,
+			cfg.OpenAIAPIKey,
+			cfg.ReasonerDriver,
+			cfg.ReasonerModel,
+		)
+	case "fake":
+		return reasoner.NewFake(cfg.ReasonerDriver, cfg.ReasonerModel), nil
+	default:
+		return nil, fmt.Errorf("unknown reasoner driver: %q", cfg.ReasonerDriver)
 	}
 }
