@@ -150,7 +150,6 @@ func buildReasoner(cfg *config.Config) (reasoner.Reasoner, error) {
 	return reasoner.NewOpenAI(
 		cfg.OpenAIBaseURL,
 		cfg.OpenAIAPIKey,
-		"openai", // driver name (for logging)
 		cfg.ReasonerModel,
 	)
 }
