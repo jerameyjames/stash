@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/alash3al/stash/internal/brain/store"
@@ -25,6 +26,13 @@ type Brain struct {
 	embedder   embedder.Embedder
 	reasoner   reasoner.Reasoner
 	pipelineCh chan string
+
+	// Pipeline stats
+	statsLock              sync.RWMutex
+	pipelineQueueDepth     int
+	pipelineLastRun        time.Time
+	pipelineLastRunSuccess bool
+	pipelineLastError      string
 }
 
 // New creates a Brain with the provided store, embedder, and reasoner.
@@ -49,6 +57,26 @@ func New(s store.Store, e embedder.Embedder, r reasoner.Reasoner) (*Brain, error
 // Close releases resources.
 func (b *Brain) Close() error {
 	return b.store.Close()
+}
+
+// PipelineStats returns current pipeline statistics.
+func (b *Brain) PipelineStats() (queueDepth int, lastRun time.Time, lastSuccess bool, lastError string) {
+	b.statsLock.RLock()
+	defer b.statsLock.RUnlock()
+	return b.pipelineQueueDepth, b.pipelineLastRun, b.pipelineLastRunSuccess, b.pipelineLastError
+}
+
+func (b *Brain) updatePipelineStats(queueDepth int, success bool, err error) {
+	b.statsLock.Lock()
+	defer b.statsLock.Unlock()
+	b.pipelineQueueDepth = queueDepth
+	b.pipelineLastRun = time.Now()
+	b.pipelineLastRunSuccess = success
+	if err != nil {
+		b.pipelineLastError = err.Error()
+	} else {
+		b.pipelineLastError = ""
+	}
 }
 
 // vectorKey returns the key used for storing vectors.

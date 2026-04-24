@@ -61,14 +61,23 @@ type Contradiction struct {
 
 // Report summarizes memory state.
 type Report struct {
-	Namespace         string            `json:"namespace"`
-	TotalFacts        int               `json:"total_facts"`
-	TotalEvents       int               `json:"total_events"`
-	TotalRelationships int              `json:"total_relationships"`
-	TotalContradictions int             `json:"total_contradictions"`
-	EntitiesByName    map[string]*EntitySummary `json:"entities_by_name,omitempty"`
-	Contradictions    []Contradiction `json:"contradictions,omitempty"`
-	GeneratedAt       time.Time       `json:"generated_at"`
+	Namespace            string                    `json:"namespace"`
+	TotalFacts           int                       `json:"total_facts"`
+	TotalEvents          int                       `json:"total_events"`
+	TotalRelationships   int                       `json:"total_relationships"`
+	TotalContradictions  int                       `json:"total_contradictions"`
+	EntitiesByName       map[string]*EntitySummary `json:"entities_by_name,omitempty"`
+	Contradictions       []Contradiction           `json:"contradictions,omitempty"`
+	Pipeline             PipelineStatus            `json:"pipeline"`
+	GeneratedAt          time.Time                 `json:"generated_at"`
+}
+
+// PipelineStatus shows background pipeline health.
+type PipelineStatus struct {
+	QueueDepth  int       `json:"queue_depth"`
+	LastRun     time.Time `json:"last_run"`
+	LastSuccess bool      `json:"last_success"`
+	LastError   string    `json:"last_error,omitempty"`
 }
 
 // EntitySummary aggregates facts about a single entity.

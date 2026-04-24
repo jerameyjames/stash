@@ -3,6 +3,7 @@ package brain
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -41,10 +42,11 @@ func (b *Brain) Run(ctx context.Context) error {
 					toProcess = append(toProcess, ns)
 				}
 			}
-			// Process and remove
-			for _, ns := range toProcess {
-				b.consolidate(ctx, ns)
-				delete(pending, ns)
+			// Update queue depth
+			b.updatePipelineStats(len(pending), true, nil)
+			// Process namespaces in parallel (max 5 concurrent)
+			if len(toProcess) > 0 {
+				b.batchConsolidate(ctx, toProcess, pending)
 			}
 		case <-ticker.C:
 			// Periodic cleanup (currently no-op)
@@ -53,6 +55,31 @@ func (b *Brain) Run(ctx context.Context) error {
 			return ctx.Err()
 		}
 	}
+}
+
+// batchConsolidate processes multiple namespaces in parallel.
+func (b *Brain) batchConsolidate(ctx context.Context, namespaces []string, pending map[string]time.Time) {
+	maxConcurrent := 5
+	if len(namespaces) < maxConcurrent {
+		maxConcurrent = len(namespaces)
+	}
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxConcurrent)
+
+	for _, ns := range namespaces {
+		wg.Add(1)
+		go func(namespace string) {
+			defer wg.Done()
+			sem <- struct{}{}        // acquire
+			defer func() { <-sem }() // release
+
+			b.consolidate(ctx, namespace)
+			delete(pending, namespace)
+		}(ns)
+	}
+
+	wg.Wait()
 }
 
 // consolidate processes recent events into facts and extracts relationships.

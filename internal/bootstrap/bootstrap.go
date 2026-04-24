@@ -76,6 +76,9 @@ func New(ctx context.Context) (*Context, error) {
 		return nil, fmt.Errorf("vector dimension mismatch: embedder returns %d, config expects %d", emb.Dims(), cfg.VectorDim)
 	}
 
+	// Wrap with cache to reduce API costs
+	emb = embedder.NewCached(emb, 10000)
+
 	reas, err := buildReasoner(cfg)
 	if err != nil {
 		str.Close()

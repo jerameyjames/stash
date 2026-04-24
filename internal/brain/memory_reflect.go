@@ -93,6 +93,9 @@ func (b *Brain) Reflect(ctx context.Context, namespace string) (*Report, error) 
 		}
 	}
 
+	// Get pipeline stats
+	queueDepth, lastRun, lastSuccess, lastError := b.PipelineStats()
+
 	return &Report{
 		Namespace:           namespace,
 		TotalFacts:          int(factCount),
@@ -101,6 +104,12 @@ func (b *Brain) Reflect(ctx context.Context, namespace string) (*Report, error) 
 		TotalContradictions: len(contradictions),
 		EntitiesByName:      entities,
 		Contradictions:      contradictions,
-		GeneratedAt:         time.Now().UTC(),
+		Pipeline: PipelineStatus{
+			QueueDepth:  queueDepth,
+			LastRun:     lastRun,
+			LastSuccess: lastSuccess,
+			LastError:   lastError,
+		},
+		GeneratedAt: time.Now().UTC(),
 	}, nil
 }
