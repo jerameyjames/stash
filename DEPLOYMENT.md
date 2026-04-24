@@ -374,7 +374,7 @@ go test ./... -cover
 go test ./... -race
 
 # Specific package
-go test ./internal/memory -v
+go test ./internal/brain -v
 ```
 
 ### Integration Tests
@@ -482,7 +482,7 @@ go clean -cache
 go build ./...
 
 # Run subset of tests
-go test ./internal/memory -v -run TestRecallFactsRanked
+go test ./internal/brain -v -run TestRecallFactsRanked
 ```
 
 ---
@@ -578,9 +578,9 @@ Runs as unprivileged user by default.
 
 See also:
 - `README.md` — Project overview
-- `CLI-REFERENCE.md` — Command reference
-- `TESTING.md` — Testing guide
-- `STATUS.md` — Project status
+- `README.md` — Command reference
+- `README.md` — Testing guide
+- `README.md` — Project status
 - `AGENTS.md` — Development rules
 
 ---
@@ -589,7 +589,7 @@ See also:
 
 For issues:
 1. Check `TROUBLESHOOTING.md` (if exists)
-2. Review `TESTING.md` for test commands
+2. Review `README.md` for test commands
 3. Search GitHub issues
 4. Create new issue with:
    - Go version: `go version`

@@ -56,7 +56,7 @@ Model (external)
       ↑
   Kernel (future — orchestrates memory + model)
       ↑
-  Memory (internal/memory — episodic + working frame)
+  Memory (internal/brain — episodic + working frame)
       ↑
   Embedder (internal/embedder — text → vector)
       ↑
@@ -111,7 +111,7 @@ internal/store     ← knows nothing above it
       ↑
 internal/embedder  ← knows nothing about memory
       ↑
-internal/memory    ← uses store + embedder
+internal/brain    ← uses store + embedder
 ```
 
 ---
@@ -141,7 +141,7 @@ The data is the user's. Exportable. Deletable. No cloud dependency. The binary +
 |---|---|---|
 | `internal/store` | In progress | `docs/tasks/0001-store.md` |
 | `internal/embedder` | Pending | `docs/tasks/0002-memory.md` |
-| `internal/memory` | Pending | `docs/tasks/0002-memory.md` |
+| `internal/brain` | Pending | `docs/tasks/0002-memory.md` |
 | Kernel | Not started | Phase 2 |
 | Consolidation/decay | Not started | Phase 2 |
 | Graph layer | Not started | Phase 4 |

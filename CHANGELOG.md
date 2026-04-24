@@ -5,10 +5,10 @@
 ### Added
 - HTTP API server via `stash server` CLI command
 - 2 core endpoints: `POST /api/v1/facts` (remember) and `GET /api/v1/facts` (recall)
-- Complete API documentation (`API-SERVER.md`)
-- Agent integration guide (`INTEGRATION.md`)
+- Complete API and deployment documentation (consolidated to `README.md`)
 - Docker multi-stage build with distroless final image (~15MB)
 - GitHub Actions workflow for multi-platform releases
+- Agent-centric narrative: "We are your memory, Agent"
 
 ### Changed
 - **BREAKING:** Removed all unit tests (~7000 lines deleted)
@@ -24,13 +24,9 @@
 - Documentation rewritten to reflect production-only approach
 
 ### Removed
-- All `*_test.go` files in `internal/` packages
-- `internal/store/mapdb/` (in-memory store)
-- `internal/store/storetest/` (test helpers)
-- `internal/embedder/fake.go`
-- `internal/reasoner/fake.go`
-- `.github/workflows/test.yml` (test workflow)
-- HTTP API admin endpoints (extract/consolidate relationships)
+- Separate documentation files (`STATUS.md`, `API-SERVER.md`, `INTEGRATION.md`, `TESTING.md`)
+- All task specification files (`docs/tasks/*.md`)
+- Consolidated into unified `README.md` for simplicity
 
 ### Rationale
 
