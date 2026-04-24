@@ -15,7 +15,7 @@ type Cached struct {
 	embedder  Embedder
 	getRecord func(ctx context.Context, id string) (map[string][]float32, error)
 	putRecord func(ctx context.Context, id string, text string, vector []float32, model string) error
-	
+
 	// Request deduplication to prevent duplicate API calls
 	inflight sync.Map // map[string]*call
 }
@@ -56,7 +56,7 @@ func (c *Cached) Embed(ctx context.Context, text string) ([]float32, error) {
 	// Cache miss — check if someone else is already embedding this
 	callVal, loaded := c.inflight.LoadOrStore(hash, &call{})
 	callInfo := callVal.(*call)
-	
+
 	if loaded {
 		// Someone else is already embedding this text, wait for them
 		callInfo.wg.Wait()
@@ -82,7 +82,7 @@ func (c *Cached) Embed(ctx context.Context, text string) ([]float32, error) {
 	// Store in cache synchronously with timeout (don't block caller indefinitely)
 	cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	if err := c.putRecord(cacheCtx, hash, text, vec, c.embedder.Model()); err != nil {
 		// Log but don't fail the request
 		log.Printf("embedder: cache write failed for hash %s: %v", hash[:8], err)

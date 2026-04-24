@@ -13,9 +13,10 @@ import (
 // openrouter.ai, local Ollama, Together, vLLM, etc.
 // The model string is passed as-is to the API — no stripping or
 // transformation. Use the format your endpoint expects:
-//   OpenRouter:    "openai/text-embedding-3-small"
-//   OpenAI direct: "text-embedding-3-small"
-//   Ollama:        "nomic-embed-text"
+//
+//	OpenRouter:    "openai/text-embedding-3-small"
+//	OpenAI direct: "text-embedding-3-small"
+//	Ollama:        "nomic-embed-text"
 type OpenAI struct {
 	client openai.Client
 	model  string

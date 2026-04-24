@@ -196,14 +196,14 @@ func (b *Brain) storeFact(ctx context.Context, namespace, content, factType stri
 	confidence := calculateConfidence(observationCount)
 
 	memMeta := map[string]any{
-		"type":               typeFact,
-		"fact_type":          factType,
-		"confidence":         float64(confidence),
-		"observation_count":  observationCount,
-		"source":             source,
-		"synthesized_from":   synthesizedFrom,
-		"created_at":         now.Format(time.RFC3339),
-		"valid_from":         now.Format(time.RFC3339),
+		"type":              typeFact,
+		"fact_type":         factType,
+		"confidence":        float64(confidence),
+		"observation_count": observationCount,
+		"source":            source,
+		"synthesized_from":  synthesizedFrom,
+		"created_at":        now.Format(time.RFC3339),
+		"valid_from":        now.Format(time.RFC3339),
 	}
 
 	record := store.Record{

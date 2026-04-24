@@ -221,19 +221,19 @@ func (s *Store) createMetadataIndexes(ctx context.Context) error {
 		}
 
 		// Convert dotted path to JSONB expression:
-	// metadata->>'key' for single-level, metadata->'a'->>'b' for nested.
-	// Uses -> for intermediate levels (returns JSONB) and ->> for the
-	// final level (returns text) so the B-tree index is on a stable type.
-	expr := "metadata"
-	for i, part := range parts {
-		if i < len(parts)-1 {
-			expr += fmt.Sprintf("->'%s'", part)
-		} else {
-			expr += fmt.Sprintf("->>'%s'", part)
+		// metadata->>'key' for single-level, metadata->'a'->>'b' for nested.
+		// Uses -> for intermediate levels (returns JSONB) and ->> for the
+		// final level (returns text) so the B-tree index is on a stable type.
+		expr := "metadata"
+		for i, part := range parts {
+			if i < len(parts)-1 {
+				expr += fmt.Sprintf("->'%s'", part)
+			} else {
+				expr += fmt.Sprintf("->>'%s'", part)
+			}
 		}
-	}
 
-	sql := fmt.Sprintf(`
+		sql := fmt.Sprintf(`
 		CREATE INDEX IF NOT EXISTS idx_records_metadata_%s 
 		ON records ((%s))
 	`, strings.ReplaceAll(path, ".", "_"), expr)

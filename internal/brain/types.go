@@ -61,15 +61,15 @@ type Contradiction struct {
 
 // Report summarizes memory state.
 type Report struct {
-	Namespace            string                    `json:"namespace"`
-	TotalFacts           int                       `json:"total_facts"`
-	TotalEvents          int                       `json:"total_events"`
-	TotalRelationships   int                       `json:"total_relationships"`
-	TotalContradictions  int                       `json:"total_contradictions"`
-	EntitiesByName       map[string]*EntitySummary `json:"entities_by_name,omitempty"`
-	Contradictions       []Contradiction           `json:"contradictions,omitempty"`
-	Pipeline             PipelineStatus            `json:"pipeline"`
-	GeneratedAt          time.Time                 `json:"generated_at"`
+	Namespace           string                    `json:"namespace"`
+	TotalFacts          int                       `json:"total_facts"`
+	TotalEvents         int                       `json:"total_events"`
+	TotalRelationships  int                       `json:"total_relationships"`
+	TotalContradictions int                       `json:"total_contradictions"`
+	EntitiesByName      map[string]*EntitySummary `json:"entities_by_name,omitempty"`
+	Contradictions      []Contradiction           `json:"contradictions,omitempty"`
+	Pipeline            PipelineStatus            `json:"pipeline"`
+	GeneratedAt         time.Time                 `json:"generated_at"`
 }
 
 // PipelineStatus shows background pipeline health.
@@ -191,7 +191,7 @@ func factFromRecord(r store.Record) (*Fact, error) {
 		Content:          r.Content,
 		Type:             factType,
 		Confidence:       confidence,
-		ObservationCount:   observationCount,
+		ObservationCount: observationCount,
 		Source:           source,
 		ValidFrom:        validFrom,
 		Score:            0,

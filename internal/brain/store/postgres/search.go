@@ -440,13 +440,13 @@ func (s *Store) DeleteWhere(ctx context.Context, namespaces []string, p *store.P
 			WHERE deleted_at IS NULL
 		`
 		params := []any{}
-		
+
 		// Add namespace filter if specified
 		if len(namespaces) > 0 {
 			params = append(params, namespaces)
 			sql += fmt.Sprintf(" AND namespace = ANY($%d::text[])", len(params))
 		}
-		
+
 		tag, err := s.db.Exec(ctx, sql, params...)
 		if err != nil {
 			return 0, fmt.Errorf("postgres: delete where all: %w", err)

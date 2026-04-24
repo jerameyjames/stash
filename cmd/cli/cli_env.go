@@ -14,29 +14,29 @@ import (
 func EnvCmd(ctx context.Context, cmd *cli.Command) error {
 	// Collect all STASH_* environment variables
 	vars := getAllStashEnvVars()
-	
+
 	if len(vars) == 0 {
 		fmt.Println("No STASH_* environment variables found.")
 		return nil
 	}
-	
+
 	// Create and render table
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
 	t.SetStyle(table.StyleLight)
 	t.AppendHeader(table.Row{"Environment Variable", "Value"})
-	
+
 	for _, env := range vars {
 		t.AppendRow(table.Row{env[0], env[1]})
 	}
-	
+
 	t.Render()
 	return nil
 }
 
 func getAllStashEnvVars() [][2]string {
 	vars := [][2]string{}
-	
+
 	// Get all env vars and filter for STASH_ prefix
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, "STASH_") {
@@ -46,18 +46,16 @@ func getAllStashEnvVars() [][2]string {
 			}
 		}
 	}
-	
+
 	// Include STASHCONFIG (not STASH_ prefixed but relevant)
 	if stashConfig := os.Getenv("STASHCONFIG"); stashConfig != "" {
 		vars = append(vars, [2]string{"STASHCONFIG", stashConfig})
 	}
-	
+
 	// Sort alphabetically for consistent output
 	sort.Slice(vars, func(i, j int) bool {
 		return vars[i][0] < vars[j][0]
 	})
-	
+
 	return vars
 }
-
-
