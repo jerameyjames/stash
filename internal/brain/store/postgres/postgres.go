@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/alash3al/stash/internal/store"
+	"github.com/alash3al/stash/internal/brain/store"
 )
 
 // querier is the minimal interface satisfied by *pgxpool.Pool and pgx.Tx.

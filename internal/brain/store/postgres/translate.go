@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/alash3al/stash/internal/store"
+	"github.com/alash3al/stash/internal/brain/store"
 )
 
 // translatePredicate translates a store.Predicate to a SQL WHERE clause and args.

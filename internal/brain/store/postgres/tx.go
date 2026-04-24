@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alash3al/stash/internal/store"
+	"github.com/alash3al/stash/internal/brain/store"
 )
 
 // WithTx runs fn inside a transaction.

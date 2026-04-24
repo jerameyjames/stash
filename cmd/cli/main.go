@@ -34,283 +34,101 @@ func main() {
 				Action: EnvCmd,
 			},
 			{
-				Name:  "events",
-				Usage: "Manage events",
-				Commands: []*cli.Command{
-					{
-						Name:    "create",
-						Aliases: []string{"remember"},
-						Usage:   "Store an event in memory",
-						Action:  rememberCmd,
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:  "namespace",
-								Usage: "Namespace for the event",
-							},
-							&cli.StringFlag{
-								Name:  "metadata",
-								Usage: "JSON metadata for the event",
-							},
-						},
-					},
-					{
-						Name:    "search",
-						Aliases: []string{"recall"},
-						Usage:   "Search for relevant events",
-						Action:  recallCmd,
-						Flags: []cli.Flag{
-							&cli.StringSliceFlag{
-								Name:  "namespace",
-								Usage: "Namespaces to search (comma-separated or repeated)",
-							},
-							&cli.IntFlag{
-								Name:  "limit",
-								Usage: "Maximum number of results",
-								Value: 10,
-							},
-							&cli.StringFlag{
-								Name:  "where",
-								Usage: "Metadata filter in format: field=value,field>=value,... (supports =, !=, <, >, <=, >=)",
-							},
-						},
-					},
-					{
-						Name:   "list",
-						Usage:  "List recent events",
-						Action: listCmd,
-						Flags: []cli.Flag{
-							&cli.StringSliceFlag{
-								Name:  "namespace",
-								Usage: "Namespaces to list (comma-separated or repeated)",
-							},
-							&cli.IntFlag{
-								Name:  "limit",
-								Usage: "Maximum number of results",
-								Value: 20,
-							},
-						},
-					},
-					{
-						Name:   "delete",
-						Usage:  "Soft-delete an event by ID",
-						Action: deleteCmd,
-					},
-					{
-						Name:   "purge",
-						Usage:  "Hard-delete an event by ID",
-						Action: purgeCmd,
-					},
-				},
-			},
-			{
-				Name:  "context",
-				Usage: "Manage working memory context",
-				Commands: []*cli.Command{
-					{
-						Name:   "show",
-						Usage:  "View current working memory context",
-						Action: contextShowCmd,
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:  "namespace",
-								Usage: "Namespace for the context",
-							},
-						},
-					},
-					{
-						Name:   "update",
-						Usage:  "Update the focus of working memory",
-						Action: contextUpdateCmd,
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:  "namespace",
-								Usage: "Namespace for the context",
-							},
-						},
-					},
-				},
-			},
-			{
-				Name:   "server",
-				Usage:  "Start HTTP API server",
-				Action: serverCmd,
+				Name:    "remember",
+				Aliases: []string{"add"},
+				Usage:   "Store a memory",
+				Action:  rememberCmd,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
-						Name:  "port",
-						Usage: "HTTP server port",
-						Value: "8080",
+						Name:  "context",
+						Usage: "Context for the memory (e.g. work, personal)",
 					},
 					&cli.StringFlag{
-						Name:  "host",
-						Usage: "HTTP server host",
-						Value: "0.0.0.0",
+						Name:  "metadata",
+						Usage: "JSON metadata for the memory",
 					},
 				},
 			},
 			{
-				Name:  "facts",
-				Usage: "Manage facts and cognitive processes",
+				Name:    "recall",
+				Aliases: []string{"search"},
+				Usage:   "Search for relevant memories",
+				Action:  recallCmd,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "context",
+						Usage: "Context to search (omit to search all)",
+					},
+					&cli.IntFlag{
+						Name:  "limit",
+						Usage: "Maximum number of results",
+						Value: 10,
+					},
+				},
+			},
+			{
+				Name:   "forget",
+				Usage:  "Forget a memory matching a description",
+				Action: forgetCmd,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "context",
+						Usage: "Context to search in",
+					},
+				},
+			},
+			{
+				Name:   "purge",
+				Usage:  "Hard-delete a memory by ID",
+				Action: purgeCmd,
+			},
+			{
+				Name:   "reflect",
+				Usage:  "Introspect memory state and generate report",
+				Action: reflectCmd,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "context",
+						Usage: "Context to reflect on (optional)",
+					},
+				},
+			},
+			{
+				Name:   "contradict",
+				Usage:  "Find contradictions in memories",
+				Action: contradictCmd,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "context",
+						Usage: "Context to check (optional)",
+					},
+				},
+			},
+			{
+				Name:  "mcp",
+				Usage: "MCP server for agent integration",
 				Commands: []*cli.Command{
 					{
-						Name:   "consolidate",
-						Usage:  "Synthesize recent events into facts",
-						Action: consolidateCmd,
+						Name:   "serve",
+						Usage:  "Start MCP server over SSE",
+						Action: mcpServeCmd,
 						Flags: []cli.Flag{
 							&cli.StringFlag{
-								Name:  "namespace",
-								Usage: "Namespace to consolidate (optional)",
+								Name:  "host",
+								Usage: "Server host",
+								Value: "0.0.0.0",
 							},
 							&cli.StringFlag{
-								Name:  "window",
-								Usage: "Time window for recent events (e.g., 1h, 30m)",
-								Value: "1h",
-							},
-							&cli.IntFlag{
-								Name:  "limit",
-								Usage: "Maximum number of events to process",
-								Value: 100,
+								Name:  "port",
+								Usage: "Server port",
+								Value: "8080",
 							},
 						},
 					},
 					{
-						Name:   "extract-relationships",
-						Usage:  "Extract relationships from facts using LLM",
-						Action: extractRelationshipsCmd,
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:  "namespace",
-								Usage: "Namespace to extract from (optional)",
-							},
-							&cli.IntFlag{
-								Name:  "limit",
-								Usage: "Maximum number of facts to process",
-								Value: 100,
-							},
-						},
-					},
-					{
-						Name:   "contradictions",
-						Usage:  "Find contradictions in facts",
-						Action: contradictionsCmd,
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:  "namespace",
-								Usage: "Namespace to check (optional)",
-							},
-						},
-					},
-					{
-						Name:   "reflect",
-						Usage:  "Introspect memory state and generate report",
-						Action: reflectCmd,
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:  "namespace",
-								Usage: "Namespace to reflect on (optional)",
-							},
-						},
-					},
-					{
-						Name:   "reinforce",
-						Usage:  "Strengthen a fact by increasing observation count",
-						Action: reinforceCmd,
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "entity",
-								Usage:    "Entity identifier (required)",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "property",
-								Usage:    "Property name (required)",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "value",
-								Usage:    "Property value (required)",
-								Required: true,
-							},
-							&cli.IntFlag{
-								Name:  "count",
-								Usage: "Number of times to reinforce",
-								Value: 1,
-							},
-						},
-					},
-					{
-						Name:   "query",
-						Usage:  "Query facts by type (atemporal, state, or point-in-time)",
-						Action: queryCmd,
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:  "namespace",
-								Usage: "Namespace to query (optional)",
-							},
-							&cli.StringFlag{
-								Name:  "type",
-								Usage: "Fact type: atemporal, state, or point-in-time (default: state)",
-								Value: "state",
-							},
-						},
-					},
-					{
-						Name:    "recall",
-						Aliases: []string{"search"},
-						Usage:   "Search facts by semantic similarity with optional confidence ranking",
-						Action:  factsRecallCmd,
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:  "namespace",
-								Usage: "Namespace to search (optional)",
-							},
-							&cli.IntFlag{
-								Name:  "limit",
-								Usage: "Maximum number of results",
-								Value: 10,
-							},
-							&cli.BoolFlag{
-								Name:  "ranked",
-								Usage: "Use confidence-ranked retrieval (combined relevance + confidence)",
-								Value: false,
-							},
-						},
-					},
-					{
-						Name:   "relationships",
-						Usage:  "Show incoming and outgoing relationships for an entity",
-						Action: relationshipsCmd,
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:  "namespace",
-								Usage: "Namespace to query (optional)",
-							},
-							&cli.StringFlag{
-								Name:     "entity",
-								Usage:    "Entity name (required)",
-								Required: true,
-							},
-						},
-					},
-					{
-						Name:   "graph",
-						Usage:  "Traverse knowledge graph from an entity",
-						Action: graphCmd,
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:  "namespace",
-								Usage: "Namespace to query (optional)",
-							},
-							&cli.StringFlag{
-								Name:     "entity",
-								Usage:    "Starting entity (required)",
-								Required: true,
-							},
-							&cli.IntFlag{
-								Name:  "depth",
-								Usage: "Maximum traversal depth (default: 1)",
-								Value: 1,
-							},
-						},
+						Name:   "execute",
+						Usage:  "Start MCP server over stdio",
+						Action: mcpExecuteCmd,
 					},
 				},
 			},

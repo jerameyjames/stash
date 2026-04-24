@@ -21,16 +21,10 @@ func recallCmd(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("query cannot be empty")
 	}
 
-	namespaces := cmd.StringSlice("namespace")
+	contextName := cmd.String("context")
 	limit := cmd.Int("limit")
-	if limit <= 0 {
+	if limit == 0 {
 		limit = 10
-	}
-
-	whereStr := cmd.String("where")
-	filter, err := parseFilterDSL(whereStr)
-	if err != nil {
-		return fmt.Errorf("invalid --where flag: %w", err)
 	}
 
 	bc, ok := cmd.Root().Metadata["bootstrapCtx"].(*bootstrap.Context)
@@ -38,17 +32,12 @@ func recallCmd(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("bootstrap context not available")
 	}
 
-	var events interface{}
-	if filter != nil {
-		events, err = bc.Memory.RecallWhere(ctx, namespaces, query, filter, limit)
-	} else {
-		events, err = bc.Memory.Recall(ctx, namespaces, query, limit)
-	}
+	memories, err := bc.Brain.Recall(ctx, contextName, query, limit)
 	if err != nil {
 		return err
 	}
 
-	jsonOutput, err := json.Marshal(events)
+	jsonOutput, err := json.Marshal(memories)
 	if err != nil {
 		return fmt.Errorf("failed to marshal response: %w", err)
 	}

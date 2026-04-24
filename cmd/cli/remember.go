@@ -21,7 +21,7 @@ func rememberCmd(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("content cannot be empty")
 	}
 
-	namespace := cmd.String("namespace")
+	contextName := cmd.String("context")
 
 	var metadata map[string]any
 	if metadataFlag := cmd.String("metadata"); metadataFlag != "" {
@@ -35,14 +35,14 @@ func rememberCmd(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("bootstrap context not available")
 	}
 
-	eventID, err := bc.Memory.Remember(ctx, namespace, content, metadata)
+	id, err := bc.Brain.Remember(ctx, contextName, content, metadata)
 	if err != nil {
 		return err
 	}
 
 	output := map[string]string{
-		"id":      eventID,
-		"message": "Event remembered successfully",
+		"id":      id,
+		"message": "Memory remembered successfully",
 	}
 
 	jsonOutput, err := json.Marshal(output)

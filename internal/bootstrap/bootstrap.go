@@ -7,21 +7,18 @@ import (
 	"os"
 	"strings"
 
+	"github.com/alash3al/stash/internal/brain"
+	"github.com/alash3al/stash/internal/brain/store"
+	"github.com/alash3al/stash/internal/brain/store/postgres"
 	"github.com/alash3al/stash/internal/config"
 	"github.com/alash3al/stash/internal/embedder"
-	"github.com/alash3al/stash/internal/memory"
 	"github.com/alash3al/stash/internal/reasoner"
-	"github.com/alash3al/stash/internal/store"
-	"github.com/alash3al/stash/internal/store/postgres"
 )
 
 type Context struct {
-	Config   *config.Config
-	Store    store.Store
-	Embedder embedder.Embedder
-	Reasoner reasoner.Reasoner
-	Memory   *memory.Memory
-	Logger   *slog.Logger
+	Config *config.Config
+	Brain  *brain.Brain
+	Logger *slog.Logger
 }
 
 func MustNew(ctx context.Context) *Context {
@@ -41,7 +38,7 @@ func New(ctx context.Context) (*Context, error) {
 	var h slog.Handler
 	opts := &slog.HandlerOptions{}
 
-lvl := slog.LevelInfo
+	lvl := slog.LevelInfo
 	switch cfg.LogLevel {
 	case "debug":
 		lvl = slog.LevelDebug
@@ -85,32 +82,24 @@ lvl := slog.LevelInfo
 		return nil, fmt.Errorf("build reasoner: %w", err)
 	}
 
-	mem, err := memory.New(str, emb, reas)
+	br, err := brain.New(str, emb, reas)
 	if err != nil {
 		str.Close()
-		return nil, fmt.Errorf("build memory: %w", err)
+		return nil, fmt.Errorf("build brain: %w", err)
 	}
 
 	return &Context{
-		Config:   cfg,
-		Store:    str,
-		Embedder: emb,
-		Reasoner: reas,
-		Memory:   mem,
-		Logger:   logger,
+		Config: cfg,
+		Brain:  br,
+		Logger: logger,
 	}, nil
 }
 
 func (c *Context) Close() error {
 	var errs []string
-	if c.Memory != nil {
-		if err := c.Memory.Close(); err != nil {
-			errs = append(errs, fmt.Sprintf("memory: %v", err))
-		}
-	}
-	if c.Store != nil {
-		if err := c.Store.Close(); err != nil {
-			errs = append(errs, fmt.Sprintf("store: %v", err))
+	if c.Brain != nil {
+		if err := c.Brain.Close(); err != nil {
+			errs = append(errs, fmt.Sprintf("brain: %v", err))
 		}
 	}
 	if len(errs) > 0 {

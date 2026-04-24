@@ -12,12 +12,12 @@ import (
 func purgeCmd(ctx context.Context, cmd *cli.Command) error {
 	args := cmd.Args()
 	if args.Len() == 0 {
-		return fmt.Errorf("event ID argument is required")
+		return fmt.Errorf("memory ID argument is required")
 	}
 
-	eventID := args.First()
-	if eventID == "" {
-		return fmt.Errorf("event ID cannot be empty")
+	id := args.First()
+	if id == "" {
+		return fmt.Errorf("memory ID cannot be empty")
 	}
 
 	bc, ok := cmd.Root().Metadata["bootstrapCtx"].(*bootstrap.Context)
@@ -25,14 +25,12 @@ func purgeCmd(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("bootstrap context not available")
 	}
 
-	if err := bc.Store.Purge(ctx, eventID); err != nil {
+	if err := bc.Brain.Purge(ctx, id); err != nil {
 		return err
 	}
 
-	output := map[string]interface{}{
-		"success": true,
-		"purged":  1,
-		"id":      eventID,
+	output := map[string]string{
+		"message": "Memory purged successfully",
 	}
 
 	jsonOutput, err := json.Marshal(output)

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alash3al/stash/internal/store"
+	"github.com/alash3al/stash/internal/brain/store"
 	"github.com/jackc/pgx/v5"
 )
 
