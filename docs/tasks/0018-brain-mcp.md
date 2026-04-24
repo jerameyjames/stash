@@ -102,7 +102,9 @@
   func (b *Brain) Recall(ctx context.Context, namespace, query string, limit int) ([]Memory, error)
 
   // memory_forget.go
-  func (b *Brain) Forget(ctx context.Context, id string) error
+  // Forget finds the top memory matching the query and soft-deletes it.
+  // No ID required — designed for natural language "forget about X" flows.
+  func (b *Brain) Forget(ctx context.Context, namespace, query string) error
 
   // memory_purge.go
   func (b *Brain) Purge(ctx context.Context, id string) error
@@ -129,10 +131,52 @@
   ```
 
   **MCP tools (both transports):**
+
+  Three tools, all with human-conversational descriptions so the LLM knows when to invoke them.
+  `context` replaces `namespace` as the user-facing vocabulary — the LLM tracks the active context
+  across turns and passes it automatically. The human never sees the word "namespace".
+
   ```
-  remember(content: string, namespace?: string, metadata?: object) → { id: string }
-  recall(query: string, namespace?: string, limit?: number)        → Memory[]
+  remember
+    description: Use when the user says things like:
+                   "remember that...", "note that...", "keep in mind...",
+                   "don't forget...", "I want you to know...",
+                   or corrects something you previously knew.
+    input:
+      content:   string   (what to remember, required)
+      context?:  string   (which context to store in, e.g. "work", "personal")
+                          defaults to "general" if omitted
+      metadata?: object   (optional structured data)
+    output: { id: string }
+
+  recall
+    description: Use when the user asks things like:
+                   "do you remember...", "what do you know about...",
+                   "what have I told you about...", "remind me about...",
+                   "have I mentioned...", or when you need context before answering.
+    input:
+      query:    string   (what to search for, in natural language, required)
+      context?: string   (which context to search — omit to search across all)
+      limit?:   number   (max results, default 10)
+    output: Memory[]
+
+  forget
+    description: Use when the user says things like:
+                   "forget that...", "that's no longer true",
+                   "discard what I said about...", "ignore what I told you about...",
+                   "remove the memory about..."
+    input:
+      about:    string   (what to forget, in natural language, required)
+                         brain recalls top match then soft-deletes it — no ID needed
+      context?: string   (which context to search in)
+    output: { ok: bool }
   ```
+
+  **Context switching — no extra tool needed:**
+  When the user says "switch context to work" or "let's talk about personal stuff",
+  the LLM simply starts passing `context="work"` or `context="personal"` to subsequent
+  tool calls. The brain stores and retrieves from that namespace transparently.
+  The human never manages namespaces — they just say what context they're in.
 
   **Bootstrap:**
   ```go
@@ -158,6 +202,9 @@
   - `internal/bootstrap/bootstrap.go` drops `bc.Store`, `bc.Embedder`, `bc.Reasoner` as public fields — only `bc.Brain` is exposed.
   - `stash mcp serve` uses `--host` and `--port` flags (same as old `stash server`).
   - `stash mcp execute` uses no flags — reads from stdin, writes to stdout.
+  - `context` in MCP tool parameters maps 1:1 to `namespace` in the brain API. The translation happens in `mcp.go` — brain never sees the word "context".
+  - `forget` on the brain does: Recall(namespace, query, 1) → take top result → Store.Delete(id). If nothing found, return a sentinel error (not a hard failure).
+  - MCP tool descriptions must be written for the LLM, not the developer. They explain *when* to call the tool, not *what* it does technically.
 
 ---
 
@@ -192,11 +239,11 @@
   3. `stash env` — must print config without error
   4. `stash remember "Alice works at TechCorp"` — must return `{"id": "..."}` 
   5. `stash recall "Alice"` — must return relevant memories
-  6. `stash forget <id>` — must soft-delete without error
+  6. `stash forget "Alice works at TechCorp"` — must find top match and soft-delete without error
   7. `stash purge <id>` — must hard-delete without error
   8. `stash reflect` — must return report without error
   9. `stash contradict` — must return without error
-  10. `stash mcp execute` — must start, list `remember` and `recall` as available tools
+  10. `stash mcp execute` — must start, list `remember`, `recall`, and `forget` as available tools
   11. `stash mcp serve --port 8080` — must start SSE server, respond to connections
   12. `grep -r "internal/memory" --include="*.go"` — must return empty
   13. `grep -r "internal/store" --include="*.go"` — must return only `internal/brain/store/` references
@@ -208,7 +255,7 @@
   - `internal/handlers/` does not exist
   - `bc.Brain` is the only brain-related field on bootstrap.Context
   - `cmd/cli/` contains exactly 8 command files + `main.go` + `cli_env.go`
-  - `stash mcp execute` lists exactly 2 tools: `remember` and `recall`
+  - `stash mcp execute` lists exactly 3 tools: `remember`, `recall`, `forget`
   - `stash mcp serve` starts without error
   - `go build ./cmd/cli/` compiles with zero errors and zero warnings
   - `go vet ./...` passes clean
@@ -233,7 +280,7 @@
 - [ ] 14. Rewrite `cmd/cli/main.go` (new 8-command tree)
 - [ ] 15. Rewrite `cmd/cli/remember.go` → calls bc.Brain.Remember()
 - [ ] 16. Rewrite `cmd/cli/recall.go` → calls bc.Brain.Recall()
-- [ ] 17. Create `cmd/cli/forget.go` → calls bc.Brain.Forget()
+- [ ] 17. Create `cmd/cli/forget.go` → calls bc.Brain.Forget(namespace, query) — takes natural language, not ID
 - [ ] 18. Rewrite `cmd/cli/purge.go` → calls bc.Brain.Purge()
 - [ ] 19. Create `cmd/cli/reflect.go` → calls bc.Brain.Reflect()
 - [ ] 20. Create `cmd/cli/contradict.go` → calls bc.Brain.Contradict()
@@ -252,6 +299,7 @@
 ## 6. Progress Notes
 
 - [2026-04-24] Task created. Ready for execution.
+- [2026-04-24] Updated MCP tools: added `forget` as 3rd tool, renamed `namespace` → `context` in tool parameters, added human-conversational descriptions, clarified forget-by-query semantics (no ID needed).
 
 ---
 
