@@ -4,40 +4,40 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"sync"
 )
 
-// Cached wraps an embedder with an in-memory LRU cache.
+// Cached stores embeddings in a generic store using a special namespace.
+// Composes with store, doesn't extend it.
 type Cached struct {
-	embedder Embedder
-	cache    map[string][]float32
-	mu       sync.RWMutex
-	maxSize  int
+	embedder  Embedder
+	getRecord func(ctx context.Context, id string) (map[string][]float32, error)
+	putRecord func(ctx context.Context, id string, text string, vector []float32, model string) error
 }
 
-// NewCached creates a cached embedder with the given max cache size.
-func NewCached(e Embedder, maxSize int) *Cached {
-	if maxSize <= 0 {
-		maxSize = 10000 // Default: 10k embeddings
-	}
+// NewCached creates a cached embedder using store operations.
+func NewCached(
+	e Embedder,
+	getRecord func(ctx context.Context, id string) (map[string][]float32, error),
+	putRecord func(ctx context.Context, id string, text string, vector []float32, model string) error,
+) *Cached {
 	return &Cached{
-		embedder: e,
-		cache:    make(map[string][]float32, maxSize),
-		maxSize:  maxSize,
+		embedder:  e,
+		getRecord: getRecord,
+		putRecord: putRecord,
 	}
 }
 
 // Embed returns cached embedding or calls the underlying embedder.
 func (c *Cached) Embed(ctx context.Context, text string) ([]float32, error) {
-	key := cacheKey(text)
+	hash := cacheKey(text)
 
 	// Try cache first
-	c.mu.RLock()
-	if vec, ok := c.cache[key]; ok {
-		c.mu.RUnlock()
-		return vec, nil
+	vectors, err := c.getRecord(ctx, hash)
+	if err == nil && vectors != nil {
+		if vec, ok := vectors[c.embedder.Model()]; ok && len(vec) > 0 {
+			return vec, nil
+		}
 	}
-	c.mu.RUnlock()
 
 	// Cache miss — call underlying embedder
 	vec, err := c.embedder.Embed(ctx, text)
@@ -45,17 +45,10 @@ func (c *Cached) Embed(ctx context.Context, text string) ([]float32, error) {
 		return nil, err
 	}
 
-	// Store in cache
-	c.mu.Lock()
-	if len(c.cache) >= c.maxSize {
-		// Simple eviction: random delete (could be LRU)
-		for k := range c.cache {
-			delete(c.cache, k)
-			break
-		}
-	}
-	c.cache[key] = vec
-	c.mu.Unlock()
+	// Store in cache (fire and forget)
+	go func() {
+		c.putRecord(context.Background(), hash, text, vec, c.embedder.Model())
+	}()
 
 	return vec, nil
 }

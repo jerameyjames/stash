@@ -76,8 +76,43 @@ func New(ctx context.Context) (*Context, error) {
 		return nil, fmt.Errorf("vector dimension mismatch: embedder returns %d, config expects %d", emb.Dims(), cfg.VectorDim)
 	}
 
-	// Wrap with cache to reduce API costs
-	emb = embedder.NewCached(emb, 10000)
+	// Wrap embedder with store-backed cache
+	// Uses namespace "_cache:embeddings" - no interface changes to store
+	emb = embedder.NewCached(
+		emb,
+		// getRecord: try to get cached embedding
+		func(ctx context.Context, id string) (map[string][]float32, error) {
+			record, err := str.Get(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			// Extract just the vectors
+			vectors := make(map[string][]float32)
+			for model, vec := range record.Vectors {
+				vectors[model] = vec.Values
+			}
+			return vectors, nil
+		},
+		// putRecord: store embedding in cache namespace
+		func(ctx context.Context, id string, text string, vector []float32, model string) error {
+			return str.Put(ctx, store.Record{
+				ID:        id,
+				Namespace: "_cache:embeddings",
+				Content:   text,
+				Vectors: map[string]store.Vector{
+					model: {
+						Values: vector,
+						Model:  model,
+					},
+				},
+				Metadata: map[string]any{
+					"_memory": map[string]any{
+						"type": "cache",
+					},
+				},
+			})
+		},
+	)
 
 	reas, err := buildReasoner(cfg)
 	if err != nil {
