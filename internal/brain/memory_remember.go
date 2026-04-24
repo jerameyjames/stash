@@ -9,16 +9,8 @@ import (
 	"github.com/google/uuid"
 )
 
-type Memory struct {
-	ID        string    
-	Namespace string    
-	Content   string    
-	Score     float32   
-	CreatedAt time.Time 
-}
-
-const typeEvent = "event"
-
+// Remember stores a memory with its embedding.
+// Returns the generated memory ID on success.
 func (b *Brain) Remember(ctx context.Context, namespace, content string, metadata map[string]any) (string, error) {
 	if content == "" {
 		return "", ErrEmptyContent
@@ -53,7 +45,7 @@ func (b *Brain) Remember(ctx context.Context, namespace, content string, metadat
 		Namespace: namespace,
 		Content:   content,
 		Vectors: map[string]store.Vector{
-			b.embedder.Model(): {
+			b.vectorKey(): {
 				Values: vec,
 				Model:  b.embedder.Model(),
 			},
@@ -65,6 +57,7 @@ func (b *Brain) Remember(ctx context.Context, namespace, content string, metadat
 		return "", err
 	}
 
+	// Signal pipeline — non-blocking
 	select {
 	case b.pipelineCh <- namespace:
 	default:

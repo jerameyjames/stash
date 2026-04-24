@@ -2,11 +2,13 @@ package brain
 
 import (
 	"context"
-	"time"
+	"sort"
 
 	"github.com/alash3al/stash/internal/brain/store"
 )
 
+// Recall retrieves memories relevant to a query via semantic search.
+// Searches both events and facts, returns unified results ranked by relevance.
 func (b *Brain) Recall(ctx context.Context, namespace, query string, limit int) ([]Memory, error) {
 	if limit == 0 {
 		limit = 10
@@ -25,54 +27,52 @@ func (b *Brain) Recall(ctx context.Context, namespace, query string, limit int) 
 		namespaces = []string{namespace}
 	}
 
-	results, err := b.store.Search(ctx, store.Query{
+	// Search facts first (consolidated, higher quality)
+	factResults, err := b.store.Search(ctx, store.Query{
 		Namespaces: namespaces,
 		Vector:     vec,
-		VectorName: b.embedder.Model(),
+		VectorName: b.vectorKey(),
 		TopK:       limit,
 		Filter: &store.Predicate{
 			Field: "metadata._memory.type",
 			Op:    store.OpEq,
-			Value: typeEvent,
+			Value: typeFact,
 		},
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	memories := make([]Memory, 0, len(results))
-	for _, result := range results {
-		m, err := recordToMemory(result.Record, result.Score)
+	// If not enough facts, search events
+	remaining := limit - len(factResults)
+	var eventResults []store.SearchResult
+	if remaining > 0 {
+		eventResults, err = b.store.Search(ctx, store.Query{
+			Namespaces: namespaces,
+			Vector:     vec,
+			VectorName: b.vectorKey(),
+			TopK:       remaining,
+			Filter: &store.Predicate{
+				Field: "metadata._memory.type",
+				Op:    store.OpEq,
+				Value: typeEvent,
+			},
+		})
 		if err != nil {
-			continue
+			return nil, err
 		}
-		memories = append(memories, m)
+	}
+
+	// Combine and sort by score
+	allResults := append(factResults, eventResults...)
+	sort.Slice(allResults, func(i, j int) bool {
+		return allResults[i].Score > allResults[j].Score
+	})
+
+	memories := make([]Memory, 0, len(allResults))
+	for _, result := range allResults {
+		memories = append(memories, memoryFromRecord(result.Record, result.Score))
 	}
 
 	return memories, nil
-}
-
-func recordToMemory(r store.Record, score float32) (Memory, error) {
-	memMeta, ok := r.Metadata["_memory"].(map[string]any)
-	if !ok {
-		return Memory{}, nil
-	}
-
-	var timestamp time.Time
-	if ts, ok := memMeta["timestamp"].(string); ok {
-		if parsed, err := time.Parse(time.RFC3339, ts); err == nil {
-			timestamp = parsed
-		}
-	}
-	if timestamp.IsZero() {
-		timestamp = r.CreatedAt
-	}
-
-	return Memory{
-		ID:        r.ID,
-		Namespace: r.Namespace,
-		Content:   r.Content,
-		Score:     score,
-		CreatedAt: timestamp,
-	}, nil
 }
