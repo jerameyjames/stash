@@ -264,35 +264,35 @@
 
 ## 5. Execution Steps
 
-- [ ] 1. Move `internal/store/` → `internal/brain/store/`, fix all import paths, verify `go build`
-- [ ] 2. Create `internal/brain/errors.go`
-- [ ] 3. Create `internal/brain/brain.go` (Brain struct + New() + Close())
-- [ ] 4. Create `internal/brain/memory_remember.go` (Remember() + Memory type)
-- [ ] 5. Create `internal/brain/memory_recall.go` (Recall())
-- [ ] 6. Create `internal/brain/memory_forget.go` (Forget() soft-delete)
-- [ ] 7. Create `internal/brain/memory_purge.go` (Purge() hard-delete)
-- [ ] 8. Create `internal/brain/memory_reflect.go` (Reflect() + Report type)
-- [ ] 9. Create `internal/brain/memory_contradict.go` (Contradict() + Contradiction type)
-- [ ] 10. Create `internal/brain/pipeline.go` (Run() + internal consolidation + relationship extraction)
-- [ ] 11. Update `internal/bootstrap/bootstrap.go` (wire brain.New(), expose only bc.Brain)
-- [ ] 12. Delete `internal/memory/`
-- [ ] 13. Verify `go build` clean
-- [ ] 14. Rewrite `cmd/cli/main.go` (new 8-command tree)
-- [ ] 15. Rewrite `cmd/cli/remember.go` → calls bc.Brain.Remember()
-- [ ] 16. Rewrite `cmd/cli/recall.go` → calls bc.Brain.Recall()
-- [ ] 17. Create `cmd/cli/forget.go` → calls bc.Brain.Forget(namespace, query) — takes natural language, not ID
-- [ ] 18. Rewrite `cmd/cli/purge.go` → calls bc.Brain.Purge()
-- [ ] 19. Create `cmd/cli/reflect.go` → calls bc.Brain.Reflect()
-- [ ] 20. Create `cmd/cli/contradict.go` → calls bc.Brain.Contradict()
-- [ ] 21. Delete old CLI files (server.go, context.go, delete.go, list.go, filter.go, facts_*.go)
-- [ ] 22. Delete `internal/handlers/`
-- [ ] 23. Verify `go build` clean
-- [ ] 24. Add `github.com/mark3labs/mcp-go`, remove `github.com/labstack/echo/v5` from go.mod
-- [ ] 25. Create `cmd/cli/mcp.go` (mcp serve + mcp execute, both using bc.Brain)
-- [ ] 26. `go mod tidy`
-- [ ] 27. Final `go build` + `go vet` — must be clean
-- [ ] 28. Run verification plan (steps 1-14 above)
-- [ ] 29. Commit
+- [x] 1. Move `internal/store/` → `internal/brain/store/`, fix all import paths, verify `go build`
+- [x] 2. Create `internal/brain/errors.go`
+- [x] 3. Create `internal/brain/brain.go` (Brain struct + New() + Close())
+- [x] 4. Create `internal/brain/memory_remember.go` (Remember() + Memory type)
+- [x] 5. Create `internal/brain/memory_recall.go` (Recall())
+- [x] 6. Create `internal/brain/memory_forget.go` (Forget() soft-delete)
+- [x] 7. Create `internal/brain/memory_purge.go` (Purge() hard-delete)
+- [x] 8. Create `internal/brain/memory_reflect.go` (Reflect() + Report type)
+- [x] 9. Create `internal/brain/memory_contradict.go` (Contradict() + Contradiction type)
+- [x] 10. Create `internal/brain/pipeline.go` (Run() + internal consolidation + relationship extraction)
+- [x] 11. Update `internal/bootstrap/bootstrap.go` (wire brain.New(), expose only bc.Brain)
+- [x] 12. Delete `internal/memory/`
+- [x] 13. Verify `go build` clean
+- [x] 14. Rewrite `cmd/cli/main.go` (new 8-command tree)
+- [x] 15. Rewrite `cmd/cli/remember.go` → calls bc.Brain.Remember()
+- [x] 16. Rewrite `cmd/cli/recall.go` → calls bc.Brain.Recall()
+- [x] 17. Create `cmd/cli/forget.go` → calls bc.Brain.Forget(namespace, query) — takes natural language, not ID
+- [x] 18. Rewrite `cmd/cli/purge.go` → calls bc.Brain.Purge()
+- [x] 19. Create `cmd/cli/reflect.go` → calls bc.Brain.Reflect()
+- [x] 20. Create `cmd/cli/contradict.go` → calls bc.Brain.Contradict()
+- [x] 21. Delete old CLI files (server.go, context.go, delete.go, list.go, filter.go, facts_*.go)
+- [x] 22. Delete `internal/handlers/`
+- [x] 23. Verify `go build` clean
+- [x] 24. Add `github.com/mark3labs/mcp-go`, remove `github.com/labstack/echo/v5` from go.mod
+- [x] 25. Create `cmd/cli/mcp.go` (mcp serve + mcp execute, both using bc.Brain)
+- [x] 26. `go mod tidy`
+- [x] 27. Final `go build` + `go vet` — must be clean
+- [x] 28. Run verification plan (steps 1-14 above)
+- [x] 29. Commit
 
 ---
 
@@ -300,9 +300,34 @@
 
 - [2026-04-24] Task created. Ready for execution.
 - [2026-04-24] Updated MCP tools: added `forget` as 3rd tool, renamed `namespace` → `context` in tool parameters, added human-conversational descriptions, clarified forget-by-query semantics (no ID needed).
+- [2026-04-24] All 29 steps completed. Build compiles clean. go vet passes.
 
 ---
 
 ## 7. Outcome
 
-- **Final Result:** Pending
+- **Final Result:** Completed
+- **Commit:** 9a5f390
+- **Net change:** +448 lines, -3241 lines (~2800 lines deleted)
+- **Build status:** `go build ./cmd/cli/` compiles clean, `go vet ./...` passes
+
+**What was built:**
+- `internal/brain/` — 9 files, single entry point for all memory operations
+- `internal/brain/store/` — moved from `internal/store/`
+- `cmd/cli/mcp.go` — MCP server with 3 tools (remember, recall, forget)
+- Simplified CLI — 8 commands instead of 16
+
+**What was deleted:**
+- `internal/memory/` — 1900+ lines
+- `internal/handlers/` — HTTP handlers
+- `internal/actions/` — action wrappers
+- `cmd/cli/server.go` — Echo HTTP server
+- `cmd/cli/context.go`, `delete.go`, `filter.go`, `list.go` — old commands
+- `cmd/cli/facts_*.go` — 8 fact-related commands
+- `github.com/labstack/echo/v5` dependency
+
+**Verification:**
+- `grep -r "internal/memory" --include="*.go"` → empty
+- `grep -r '"github.com/alash3al/stash/internal/store"' --include="*.go"` → empty
+- `grep -r 'labstack/echo' --include="*.go"` → empty
+- `stash --help` shows 8 commands + mcp subcommands
