@@ -3,10 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Primary SEO -->
     <title>Stash — Persistent Memory for AI Agents</title>
-    <meta name="description" content="Give any AI agent a persistent memory, a knowledge graph, goals, and a self-model. Stash is the cognitive layer your agents are missing.">
-    <meta property="og:title" content="Stash — Persistent Memory for AI Agents">
-    <meta property="og:description" content="Your AI is brilliant. It just forgets everything. Stash fixes that.">
+    <meta name="description" content="Stash gives any AI agent a persistent memory, knowledge graph, goals, and self-model. Works with Claude, ChatGPT, Ollama, and any MCP-compatible agent. Open source. Self-hosted.">
+    <meta name="keywords" content="AI memory, persistent memory, MCP, model context protocol, AI agents, RAG alternative, pgvector, Ollama, OpenRouter, open source AI memory, agent memory, LLM memory, knowledge graph, AI tools">
+    <meta name="author" content="Mohamed Al-Ashaal">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://stash.alash3al.com/">
+
+    <!-- Open Graph (Facebook, LinkedIn, WhatsApp) -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://stash.alash3al.com/">
+    <meta property="og:site_name" content="Stash">
+    <meta property="og:title" content="Stash — Your AI has amnesia. We fixed it.">
+    <meta property="og:description" content="Give any AI agent a persistent memory in minutes. Works with Claude, ChatGPT, Ollama, OpenRouter, and any MCP-compatible agent. Open source, self-hosted, model-agnostic.">
+    <meta property="og:image" content="https://stash.alash3al.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Stash — Persistent Memory for AI Agents">
+    <meta property="og:locale" content="en_US">
+
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://stash.alash3al.com/">
+    <meta name="twitter:title" content="Stash — Your AI has amnesia. We fixed it.">
+    <meta name="twitter:description" content="Give any AI agent a persistent memory in minutes. Open source, self-hosted, works with any MCP-compatible agent.">
+    <meta name="twitter:image" content="https://stash.alash3al.com/og-image.png">
+    <meta name="twitter:image:alt" content="Stash — Persistent Memory for AI Agents">
+    <meta name="twitter:creator" content="@alash3al">
+    <meta name="twitter:site" content="@alash3al">
+
+    <!-- Schema.org structured data -->
+    <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "Stash",
+            "url": "https://stash.alash3al.com",
+            "description": "Persistent memory infrastructure for AI agents. Gives any MCP-compatible agent a knowledge graph, goals, causal reasoning, and self-model. Open source and self-hosted.",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Linux, macOS, Windows",
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "author": {
+                "@type": "Person",
+                "name": "Mohamed Al-Ashaal",
+                "url": "https://alash3al.com"
+            },
+            "codeRepository": "https://github.com/alash3al/stash",
+            "license": "https://www.apache.org/licenses/LICENSE-2.0",
+            "keywords": "AI memory, MCP, persistent memory, knowledge graph, AI agents, open source"
+        }
+    </script>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,300;1,9..144,700&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -993,7 +1049,226 @@
         }
         .dim-warning-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
 
+        /* QUICKSTART */
+        #quickstart {
+            padding: 120px 0;
+            border-top: 1px solid var(--border);
+        }
+        .qs-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: start;
+        }
+        .qs-headline {
+            font-family: 'Fraunces', serif;
+            font-size: clamp(36px, 4vw, 56px);
+            font-weight: 700;
+            line-height: 1.05;
+            letter-spacing: -0.02em;
+            margin-bottom: 20px;
+        }
+        .qs-headline em { font-style: italic; font-weight: 300; color: var(--amber); }
+        .qs-body {
+            color: var(--text-dim);
+            font-size: 16px;
+            line-height: 1.8;
+            margin-bottom: 40px;
+        }
+        .qs-steps { display: flex; flex-direction: column; gap: 16px; }
+        .qs-step {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .qs-step-num {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            color: var(--bg);
+            background: var(--amber);
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-weight: 500;
+            margin-top: 1px;
+        }
+        .qs-step-text {
+            font-size: 15px;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+        .qs-step-text code {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px;
+            color: var(--amber);
+            background: rgba(232,160,32,0.08);
+            padding: 1px 6px;
+        }
+        .qs-note {
+            margin-top: 12px;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            font-size: 12px;
+            color: var(--text-muted);
+            padding: 12px 16px;
+            border: 1px dashed #5a3030;
+            background: rgba(144,64,64,0.04);
+            line-height: 1.6;
+        }
+        .qs-note code {
+            font-family: 'IBM Plex Mono', monospace;
+            color: var(--amber);
+        }
+
+        /* RAG */
+        #rag { padding: 120px 0; border-top: 1px solid var(--border); }
+
+        .rag-hero {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: center;
+            margin-bottom: 64px;
+        }
+        .rag-headline {
+            font-family: 'Fraunces', serif;
+            font-size: clamp(36px, 4.5vw, 62px);
+            font-weight: 700;
+            line-height: 1.0;
+            letter-spacing: -0.02em;
+        }
+        .rag-headline em { font-style: italic; font-weight: 300; color: var(--amber); }
+        .rag-sub {
+            font-size: 17px;
+            color: var(--text-dim);
+            line-height: 1.8;
+        }
+
+        .rag-explainer {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 32px;
+            align-items: start;
+            margin-bottom: 48px;
+        }
+        .rag-side {
+            border: 1px solid var(--border);
+            background: var(--surface);
+            padding: 36px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .rag-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            padding: 8px 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            align-self: flex-start;
+        }
+        .rag-bad { border: 1px solid #5a3030; color: #904040; }
+        .rag-good { border: 1px solid var(--amber-dim); color: var(--amber); }
+        .rag-metaphor {
+            font-family: 'Fraunces', serif;
+            font-size: 22px;
+            font-style: italic;
+            color: var(--text);
+            font-weight: 300;
+        }
+        .rag-desc {
+            font-size: 14px;
+            color: var(--text-dim);
+            line-height: 1.8;
+        }
+        .rag-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .rag-list li {
+            font-size: 13px;
+            line-height: 1.5;
+            padding-left: 20px;
+            position: relative;
+        }
+        .bad-list li { color: #7a5050; }
+        .bad-list li::before { content: '✗'; position: absolute; left: 0; color: #904040; }
+        .good-list li { color: var(--text-dim); }
+        .good-list li::before { content: '✓'; position: absolute; left: 0; color: var(--green); }
+
+        .rag-vs {
+            font-family: 'Fraunces', serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            padding-top: 80px;
+        }
+
+        /* Analogy cards */
+        .rag-bottom { display: flex; flex-direction: column; gap: 24px; }
+        .rag-analogy {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 16px;
+            align-items: center;
+        }
+        .analogy-card {
+            border: 1px solid var(--border);
+            background: var(--surface);
+            padding: 28px 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .analogy-card.stash-analogy {
+            border-color: var(--amber-dim);
+            background: rgba(232,160,32,0.04);
+        }
+        .analogy-icon { font-size: 28px; }
+        .analogy-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        .analogy-text {
+            font-size: 15px;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+        .stash-analogy .analogy-text { color: var(--text); }
+        .analogy-arrow {
+            font-size: 24px;
+            color: var(--amber-dim);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .rag-note {
+            background: rgba(232,160,32,0.04);
+            border: 1px solid var(--border);
+            padding: 20px 28px;
+            font-size: 14px;
+            color: var(--text-dim);
+            line-height: 1.7;
+        }
+        .rag-note strong { color: var(--text); }
+
         /* Mobile */
+
+
 
 
 
@@ -1002,7 +1277,10 @@
             .nav-links { display: none; }
             #hero { padding: 120px 24px 80px; }
             .container { padding: 0 24px; }
-            .unique-hero { grid-template-columns: 1fr; gap: 32px; }
+            .rag-hero, .rag-explainer, .rag-analogy { grid-template-columns: 1fr; }
+            .rag-vs, .analogy-arrow { justify-content: center; padding-top: 0; }
+
+
             .compare-header, .compare-row { grid-template-columns: 1fr 1fr 1fr; }
             .compare-feature { display: none; }
 
@@ -1034,8 +1312,9 @@
 <nav id="nav">
     <div class="nav-logo">stash<span>.memory</span></div>
     <ul class="nav-links">
-        <li><a href="#problem">Problem</a></li>
         <li><a href="#what">What</a></li>
+        <li><a href="#rag">vs RAG</a></li>
+        <li><a href="#quickstart">Quick Start</a></li>
         <li><a href="#pipeline">Pipeline</a></li>
         <li><a href="#mcp">MCP</a></li>
         <li><a href="#backends">Backends</a></li>
@@ -1072,6 +1351,7 @@
 </section>
 
 <!-- STORY -->
+
 <section id="story">
     <div class="container">
         <div class="section-tag reveal">Sound familiar?</div>
@@ -1145,7 +1425,123 @@
     </div>
 </section>
 
+<!-- WHAT -->
+<section id="what">
+    <div class="container">
+        <div class="what-layout">
+            <div>
+                <div class="section-tag">What is Stash</div>
+                <h2 class="what-headline">Not just memory.<br><em>A second brain.</em></h2>
+                <p class="what-body">Stash is a persistent cognitive layer that sits between your AI agent and the world. It doesn't replace your model — it makes your model continuous. Episodes become facts. Facts become patterns. Patterns become wisdom.</p>
+                <blockquote class="what-quote reveal">"Your AI is the brain. Stash is the life experience."</blockquote>
+            </div>
+            <div class="stack-visual reveal">
+                <div class="stack-layer dim">
+                    <div class="stack-layer-dot"></div>
+                    <div class="stack-layer-name">your agent</div>
+                    <div class="stack-layer-desc">Claude, GPT, local model, anything</div>
+                </div>
+                <div class="stack-layer">
+                    <div class="stack-layer-dot"></div>
+                    <div class="stack-layer-name">episodes</div>
+                    <div class="stack-layer-desc">Raw observations, append-only</div>
+                </div>
+                <div class="stack-layer">
+                    <div class="stack-layer-dot"></div>
+                    <div class="stack-layer-name">facts</div>
+                    <div class="stack-layer-desc">Synthesized beliefs with confidence</div>
+                </div>
+                <div class="stack-layer">
+                    <div class="stack-layer-dot"></div>
+                    <div class="stack-layer-name">relationships</div>
+                    <div class="stack-layer-desc">Entity knowledge graph</div>
+                </div>
+                <div class="stack-layer">
+                    <div class="stack-layer-dot"></div>
+                    <div class="stack-layer-name">patterns</div>
+                    <div class="stack-layer-desc">Higher-order abstractions</div>
+                </div>
+                <div class="stack-layer">
+                    <div class="stack-layer-dot"></div>
+                    <div class="stack-layer-name">goals · failures · hypotheses</div>
+                    <div class="stack-layer-desc">Intent, learning, uncertainty</div>
+                </div>
+                <div class="stack-layer dim">
+                    <div class="stack-layer-dot"></div>
+                    <div class="stack-layer-name">postgres + pgvector</div>
+                    <div class="stack-layer-desc">Battle-tested infrastructure</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- RAG -->
+<section id="rag">
+    <div class="container">
+        <div class="section-tag reveal">Stash vs RAG</div>
+        <div class="rag-hero reveal">
+            <h2 class="rag-headline">RAG gives your AI<br>a <em>search engine.</em><br>Stash gives it a <em>life.</em></h2>
+            <p class="rag-sub">You've probably heard of RAG — Retrieval Augmented Generation. It's clever. But it's not memory. Here's the difference, in plain English.</p>
+        </div>
+
+        <div class="rag-explainer reveal">
+            <div class="rag-side">
+                <div class="rag-label rag-bad">📚 RAG</div>
+                <div class="rag-metaphor">"A very fast librarian"</div>
+                <p class="rag-desc">You give it a pile of documents. When you ask a question, it searches those documents and hands you the relevant pages. That's it. It doesn't remember your conversation. It doesn't learn. It doesn't know you. Every question starts from scratch — it's just a smarter search engine over files you already wrote.</p>
+                <ul class="rag-list bad-list">
+                    <li>Only knows what's in your documents</li>
+                    <li>Cannot learn from conversations</li>
+                    <li>Cannot track goals or intentions</li>
+                    <li>Cannot reason about cause and effect</li>
+                    <li>Cannot notice contradictions over time</li>
+                    <li>Stateless — no continuity whatsoever</li>
+                    <li>You must write the knowledge first</li>
+                </ul>
+            </div>
+
+            <div class="rag-vs">VS</div>
+
+            <div class="rag-side">
+                <div class="rag-label rag-good">🧠 Stash</div>
+                <div class="rag-metaphor">"A mind that grows"</div>
+                <p class="rag-desc">Stash learns from everything your agent experiences — conversations, decisions, successes, failures. It synthesizes raw observations into facts, connects facts into a knowledge graph, detects contradictions, tracks goals, and builds an understanding of you that deepens over time. You don't write anything. It figures it out.</p>
+                <ul class="rag-list good-list">
+                    <li>Learns from every conversation automatically</li>
+                    <li>Builds a knowledge graph over time</li>
+                    <li>Tracks your goals across weeks and months</li>
+                    <li>Reasons about cause and effect</li>
+                    <li>Self-corrects when beliefs contradict</li>
+                    <li>Continuous — picks up exactly where you left off</li>
+                    <li>Creates knowledge — you don't have to</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="rag-bottom reveal">
+            <div class="rag-analogy">
+                <div class="analogy-card">
+                    <div class="analogy-icon">📚</div>
+                    <div class="analogy-label">RAG is like...</div>
+                    <div class="analogy-text">A brilliant intern who reads your files perfectly — but forgets everything the moment they leave the room.</div>
+                </div>
+                <div class="analogy-arrow">→</div>
+                <div class="analogy-card stash-analogy">
+                    <div class="analogy-icon">🧠</div>
+                    <div class="analogy-label">Stash is like...</div>
+                    <div class="analogy-text">A colleague who was there from day one, remembers every decision you ever made, and gets more valuable every single week.</div>
+                </div>
+            </div>
+            <div class="rag-note">
+                <strong>Can you use both?</strong> Yes — RAG is great for searching documents. Stash is for remembering experience. They solve different problems. Stash just goes much, much further.
+            </div>
+        </div>
+    </div>
+</section>
+
 <!-- UNIQUE -->
+
 <section id="unique">
     <div class="container">
         <div class="section-tag reveal">Why Stash is Different</div>
@@ -1262,51 +1658,61 @@
     </div>
 </section>
 
-<!-- WHAT -->
-<section id="what">
+<!-- QUICKSTART -->
+<section id="quickstart">
     <div class="container">
-        <div class="what-layout">
-            <div>
-                <div class="section-tag">What is Stash</div>
-                <h2 class="what-headline">Not just memory.<br><em>A second brain.</em></h2>
-                <p class="what-body">Stash is a persistent cognitive layer that sits between your AI agent and the world. It doesn't replace your model — it makes your model continuous. Episodes become facts. Facts become patterns. Patterns become wisdom.</p>
-                <blockquote class="what-quote reveal">"Your AI is the brain. Stash is the life experience."</blockquote>
+        <div class="qs-layout reveal">
+            <div class="qs-left">
+                <div class="section-tag">Express Setup</div>
+                <h2 class="qs-headline">Up and running<br>in <em>3 commands.</em></h2>
+                <p class="qs-body">No infrastructure to set up. No dependencies to install manually. Docker Compose handles everything — Postgres, pgvector, Stash, all wired together and ready.</p>
+                <div class="qs-steps">
+                    <div class="qs-step">
+                        <div class="qs-step-num">1</div>
+                        <div class="qs-step-text">Clone the repo</div>
+                    </div>
+                    <div class="qs-step">
+                        <div class="qs-step-num">2</div>
+                        <div class="qs-step-text">Copy <code>.env.example</code> → <code>.env</code> and set your API key + model preferences</div>
+                    </div>
+                    <div class="qs-step">
+                        <div class="qs-step-num">3</div>
+                        <div class="qs-step-text">Run <code>docker compose up</code> — that's it. Stash is live.</div>
+                    </div>
+                </div>
             </div>
-            <div class="stack-visual reveal">
-                <div class="stack-layer dim">
-                    <div class="stack-layer-dot"></div>
-                    <div class="stack-layer-name">your agent</div>
-                    <div class="stack-layer-desc">Claude, GPT, local model, anything</div>
+            <div class="qs-right">
+                <div class="terminal">
+                    <div class="terminal-bar">
+                        <div class="terminal-dot r"></div>
+                        <div class="terminal-dot y"></div>
+                        <div class="terminal-dot g"></div>
+                        <span class="terminal-title">terminal</span>
+                    </div>
+                    <div class="terminal-body">
+                        <div><span class="t-comment"># 1. clone</span></div>
+                        <div><span class="t-prompt">$</span> <span class="t-cmd">git clone https://github.com/alash3al/stash</span></div>
+                        <div><span class="t-prompt">$</span> <span class="t-cmd">cd stash</span></div>
+                        <div>&nbsp;</div>
+                        <div><span class="t-comment"># 2. configure</span></div>
+                        <div><span class="t-prompt">$</span> <span class="t-cmd">cp .env.example .env</span></div>
+                        <div><span class="t-dim">&nbsp;&nbsp; # edit .env with your API key,</span></div>
+                        <div><span class="t-dim">&nbsp;&nbsp; # models and STASH_VECTOR_DIM</span></div>
+                        <div>&nbsp;</div>
+                        <div><span class="t-comment"># 3. launch everything</span></div>
+                        <div><span class="t-prompt">$</span> <span class="t-cmd">docker compose up</span></div>
+                        <div>&nbsp;</div>
+                        <div><span class="t-output">✓ postgres + pgvector ready</span></div>
+                        <div><span class="t-output">✓ stash migrations applied</span></div>
+                        <div><span class="t-output">✓ mcp server listening</span></div>
+                        <div><span class="t-output">✓ consolidation running in background</span></div>
+                        <div>&nbsp;</div>
+                        <div><span class="t-prompt">$</span> <span class="t-blink"></span></div>
+                    </div>
                 </div>
-                <div class="stack-layer">
-                    <div class="stack-layer-dot"></div>
-                    <div class="stack-layer-name">episodes</div>
-                    <div class="stack-layer-desc">Raw observations, append-only</div>
-                </div>
-                <div class="stack-layer">
-                    <div class="stack-layer-dot"></div>
-                    <div class="stack-layer-name">facts</div>
-                    <div class="stack-layer-desc">Synthesized beliefs with confidence</div>
-                </div>
-                <div class="stack-layer">
-                    <div class="stack-layer-dot"></div>
-                    <div class="stack-layer-name">relationships</div>
-                    <div class="stack-layer-desc">Entity knowledge graph</div>
-                </div>
-                <div class="stack-layer">
-                    <div class="stack-layer-dot"></div>
-                    <div class="stack-layer-name">patterns</div>
-                    <div class="stack-layer-desc">Higher-order abstractions</div>
-                </div>
-                <div class="stack-layer">
-                    <div class="stack-layer-dot"></div>
-                    <div class="stack-layer-name">goals · failures · hypotheses</div>
-                    <div class="stack-layer-desc">Intent, learning, uncertainty</div>
-                </div>
-                <div class="stack-layer dim">
-                    <div class="stack-layer-dot"></div>
-                    <div class="stack-layer-name">postgres + pgvector</div>
-                    <div class="stack-layer-desc">Battle-tested infrastructure</div>
+                <div class="qs-note">
+                    <span>⚠️</span>
+                    <span>Set <code>STASH_VECTOR_DIM</code> in your <code>.env</code> before first run. It cannot be changed after initialization.</span>
                 </div>
             </div>
         </div>
@@ -1603,7 +2009,7 @@
             Give your agent<br>
             <em>a memory.</em>
         </div>
-        <p class="cta-sub reveal">Open source. MIT licensed. Backed by PostgreSQL. Works with any MCP-compatible agent.</p>
+        <p class="cta-sub reveal">Open source. Apache 2.0 licensed. Backed by PostgreSQL. Works with any MCP-compatible agent.</p>
         <div class="cta-actions reveal">
             <a href="https://github.com/alash3al/stash" class="btn-primary">→ GitHub Repository</a>
             <a href="https://alash3al.com" class="btn-secondary">Built by @alash3al</a>
@@ -1612,7 +2018,7 @@
 </section>
 
 <footer>
-    <span>stash — MIT License</span>
+    <span>stash — Apache 2.0 License</span>
     <span>
     <a href="https://github.com/alash3al/stash">GitHub</a> ·
     <a href="https://alash3al.com">alash3al.com</a>
