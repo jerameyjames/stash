@@ -16,13 +16,12 @@ services:
       timeout: 5s
       retries: 5
 
-  # Stash server (HTTP + MCP + consolidation)
+  # Stash MCP server + background consolidation
   stash:
     build: .
-    command: ["serve", "--http-host", "0.0.0.0", "--http-port", "9090", "--mcp-host", "0.0.0.0", "--mcp-port", "8080"]
+    command: ["mcp", "serve", "--host", "0.0.0.0", "--port", "8080", "--with-consolidation"]
     ports:
-      - "9090:9090"  # HTTP (metrics, health)
-      - "8080:8080"  # MCP SSE
+      - "8080:8080"
     environment:
       # Required
       STASH_POSTGRES_DSN: postgresql://stash:stash_dev_password@postgres:5432/stash?sslmode=disable
