@@ -41,43 +41,44 @@ Episodes → Facts → Relationships → Causal Links
 
 ## Setup
 
-**1. Start Postgres with pgvector**
-
-```bash
-docker compose up -d
-```
-
-**2. Configure your `.env`**
+**1. Configure your `.env`**
 
 ```bash
 cp .env.example .env
 ```
 
-You need: a `Postgres DSN`, an `OpenAI-compatible API key + base URL`, an `embedding model`, and a `reasoner model`. Works with OpenAI, Ollama, OpenRouter — anything compatible.
+You need: an `OpenAI-compatible API key + base URL`, an `embedding model`, and a `reasoner model`. Works with OpenAI, Ollama, OpenRouter — anything compatible.
 
 > The embedding dimension (`STASH_VECTOR_DIM`) must match your model. Use `1536` for `text-embedding-3-small`.
 
-**3. Build and run**
+**2. Run with Docker Compose**
+
+```bash
+docker compose up
+```
+
+That's it. Postgres + pgvector, migrations, MCP server with background consolidation — all in one command.
+
+**3. Try it**
+
+```bash
+docker compose exec stash stash remember "I prefer dark mode and vim keybindings" -n /users/alice
+docker compose exec stash stash recall "UI preferences" -n /users/alice
+```
+
+### Without Docker
 
 ```bash
 go build -o stash ./cmd/cli
 
-# Connect your agent via MCP (SSE)
+# SSE (remote agents)
 ./stash mcp serve --host 0.0.0.0 --port 8080 --with-consolidation
 
-# Or stdio (Claude Desktop, etc.)
+# Stdio (Claude Desktop, etc.)
 ./stash mcp execute --with-consolidation
 ```
 
 The `--with-consolidation` flag runs background consolidation alongside the MCP server — one process does both.
-
-**4. Try it**
-
-```bash
-./stash remember "I prefer dark mode and vim keybindings" -n /users/alice
-./stash recall "UI preferences" -n /users/alice
-./stash consolidate run -n /users/alice
-```
 
 ## Namespaces
 
