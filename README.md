@@ -86,19 +86,21 @@ internal/
   models/              — Domain structs
   queries/             — sqltmpl dynamic SQL
   embedder/            — OpenAI embeddings + cache
-  reasoner/            — LLM reasoning (facts, relationships, patterns, contradictions, causal links)
+  reasoner/            — LLM reasoning (facts, relationships, patterns, contradictions, causal links, goal progress, failure patterns, hypothesis evidence)
   observability/       — Prometheus metrics
   config/              — Environment configuration
 ```
 
-### 5-Stage Consolidation
+### 8-Stage Consolidation
 
-1. **Episodes → Facts** — Cluster similar episodes, synthesize into facts via LLM
+1. **Episodes → Facts** — Cluster similar episodes, synthesize into facts via LLM (+ inline contradiction detection)
 2. **Facts → Relationships** — Extract entity edges (subject-predicate-object)
-3. **Facts → Causal Links** — Extract cause-effect pairs between facts (Stage 3.5)
-4. **Facts + Relationships → Patterns** — Abstract higher-order patterns
-5. **Per-fact Contradiction Detection** — Structured `(entity, property)` match + LLM classification; auto-supersede at confidence ≥ 0.9
-6. **Confidence Decay** — Pure SQL batch: `confidence *= decay_factor`; auto-expire below threshold
+3. **Facts → Causal Links** — Extract cause-effect pairs between facts
+4. **Goal Progress Inference** — Scan recent facts against active goals; annotate with [PROGRESS], [SUGGESTED COMPLETE], or [CONTRADICTED]
+5. **Failure Pattern Detection** — Detect repeated failures (creates `REPEAT FAILURE` episodes) and extract higher-order failure patterns as facts
+6. **Facts + Relationships → Patterns** — Abstract higher-order patterns
+7. **Hypothesis Evidence Scanning** — Auto-transition hypotheses based on new evidence: proposed→testing→confirmed, or auto-reject at threshold 0.9
+8. **Confidence Decay** — Pure SQL batch: `confidence *= decay_factor`; auto-expire below threshold
 
 Each stage tracks checkpoints so it only processes new data on subsequent runs.
 
@@ -112,7 +114,7 @@ namespaces                — Hierarchical paths (/users/alice, /projects/stash)
   relationships           — Entity edges (from → type → to)
   patterns                — Abstractions over facts/relationships
   contexts                — Working focus per namespace (with TTL)
-  consolidation_progress  — Per-namespace checkpoints (including last_decay_run)
+  consolidation_progress  — Per-namespace checkpoints (including goal/failure/hypothesis tracking)
   settings                — Operational state (embedding model lock)
   embedding_cache         — Deduplicated embedding computation
   contradictions          — Conflicting facts: old vs new, entity/property, resolution
@@ -163,6 +165,8 @@ All configuration via environment variables (`.env` file supported):
 | `STASH_CONSOLIDATION_WINDOW` | No | `168h` | Consolidation time window |
 | `STASH_DECAY_FACTOR` | No | `0.95` | Confidence decay multiplier per run |
 | `STASH_EXPIRY_THRESHOLD` | No | `0.1` | Confidence below which facts are auto-expired |
+| `STASH_HYPOTHESIS_AUTO_CONFIRM_THRESHOLD` | No | `0.9` | Confidence threshold for auto-confirming hypotheses during consolidation |
+| `STASH_HYPOTHESIS_AUTO_REJECT_THRESHOLD` | No | `0.9` | Confidence threshold for auto-rejecting hypotheses during consolidation |
 
 ## Observability
 
@@ -244,9 +248,9 @@ MCP tools:
 - **Forward-only migrations**: No down migrations; schema changes are additive
 - **Contradiction auto-supersede**: LLM classifies as `replacement` + confidence ≥ 0.9 → old fact superseded automatically
 - **Confidence decay**: Pure SQL batch operation; zero LLM calls
-- **Hypothesis lifecycle**: proposed → testing → confirmed (auto-creates fact) / rejected
-- **Goal auto-complete**: Completing all sub-goals auto-completes the parent, recursively
-- **Failure records**: Immutable once created; `lesson` field is required (the anti-repeat mechanism)
+- **Hypothesis lifecycle**: proposed → testing → confirmed (auto-creates fact) / rejected; auto-transition during consolidation at threshold 0.9
+- **Goal auto-complete**: Completing all sub-goals auto-completes the parent, recursively; consolidation annotates active goals with progress
+- **Failure records**: Immutable once created; `lesson` field is required (the anti-repeat mechanism); consolidation detects repetitions and extracts failure patterns
 
 ## License
 
