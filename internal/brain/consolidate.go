@@ -648,7 +648,7 @@ func (b *Brain) consolidateToPatterns(ctx context.Context, nsID int64, cp *model
 		// If no source IDs provided, use all facts/rels as sources
 		sourceFactIDs := p.SourceFactIDs
 		sourceRelIDs := p.SourceRelIDs
-		if len(sourceFactIDs) == 0 && len(sourceRelIDs) == 0 {
+		if len(sourceFactIDs) == 0 || len(sourceRelIDs) == 0 {
 			sourceFactIDs = make([]int64, len(facts))
 			for i, f := range facts {
 				sourceFactIDs[i] = f.ID
