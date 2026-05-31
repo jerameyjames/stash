@@ -85,6 +85,12 @@ Stash is a cognitive layer between your AI agent and the world. Episodes become 
 
 A 9-stage consolidation pipeline turns raw observations into structured knowledge — facts, relationships, causal links, patterns, contradictions, goal tracking, failure patterns, and hypothesis verification. Each stage only processes new data since the last run.
 
+## Stash Cloud (Beta — Free)
+
+A hosted, multi-tenant version of Stash is available at **[usestash.io](https://usestash.io/)** and is currently free while in beta.
+
+The cloud version is written from scratch — it shares no code with this repository. It is designed from the ground up for scalability, multi-tenancy, and long-term sustainability as a product. Feature sets differ in both directions: some things available here aren't in the cloud, and vice versa.
+
 ## Learn More
 
 **[alash3al.github.io/stash →](https://alash3al.github.io/stash/)**
