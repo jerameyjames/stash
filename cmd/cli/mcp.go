@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -736,6 +737,10 @@ func mcpServeCmd(ctx context.Context, cmd *cli.Command) error {
 	bc := getBootstrap(cmd)
 	mcpServer := newMCPServer(bc)
 	sseServer := server.NewSSEServer(mcpServer)
+	// Modern Streamable HTTP transport (MCP spec >= 2025-03-26), served at /mcp
+	// ALONGSIDE the legacy SSE transport. Stateless keeps each request
+	// self-contained, which is simplest and most robust behind a reverse proxy.
+	streamableServer := server.NewStreamableHTTPServer(mcpServer, server.WithStateLess(true))
 
 	host := cmd.String("host")
 	port := cmd.String("port")
@@ -754,16 +759,28 @@ func mcpServeCmd(ctx context.Context, cmd *cli.Command) error {
 		}()
 	}
 
-	fmt.Printf("Starting MCP SSE server on %s\n", addr)
+	// One listener, both transports. Mounting the whole SSEServer at "/" keeps
+	// /sse and /message byte-for-byte identical to the previous behavior
+	// (SSEServer.Start also used the SSEServer as the sole HTTP handler); "/mcp"
+	// is the only added route.
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", streamableServer)
+	mux.Handle("/", sseServer)
+	httpServer := &http.Server{Addr: addr, Handler: mux}
+
+	fmt.Printf("Starting MCP server (SSE at /sse, Streamable HTTP at /mcp) on %s\n", addr)
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- sseServer.Start(addr)
+		errCh <- httpServer.ListenAndServe()
 	}()
 
 	select {
 	case <-ctx.Done():
-		fmt.Println("\nMCP SSE server shutting down")
+		fmt.Println("\nMCP server shutting down")
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		_ = httpServer.Shutdown(shutdownCtx)
 		wg.Wait()
 		return nil
 	case err := <-errCh:
