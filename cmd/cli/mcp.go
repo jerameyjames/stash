@@ -763,8 +763,23 @@ func mcpServeCmd(ctx context.Context, cmd *cli.Command) error {
 	// /sse and /message byte-for-byte identical to the previous behavior
 	// (SSEServer.Start also used the SSEServer as the sole HTTP handler); "/mcp"
 	// is the only added route.
+	//
+	// /healthz is ALSO added here (mirroring server.go's real bc.Brain.Health
+	// check, not a bare process-up ping) because deploy platforms like Railway
+	// health-check a service's primary/detected port — which is this one
+	// (mcp-port), not the separate metrics port (http-port) serveHTTP() listens
+	// on. Without this, an external healthcheck aimed at this port 404s
+	// regardless of whether the database is actually reachable.
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", streamableServer)
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if err := bc.Brain.Health(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
 	mux.Handle("/", sseServer)
 	httpServer := &http.Server{Addr: addr, Handler: mux}
 
