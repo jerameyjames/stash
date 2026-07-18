@@ -131,6 +131,29 @@ func (b *Brain) Close() {
 	b.pool.Close()
 }
 
+// consolidationBatchLimit applies the operator-configured batch size to every
+// LLM-bearing stage. Historically only episode synthesis honored BatchSize;
+// relationship extraction could still make 50 sequential provider calls and
+// monopolize the fleet for minutes.
+func (b *Brain) consolidationBatchLimit(stageMaximum int) int {
+	limit := b.config.BatchSize
+	if limit <= 0 {
+		limit = DefaultConfig().BatchSize
+	}
+	if stageMaximum > 0 && limit > stageMaximum {
+		limit = stageMaximum
+	}
+	return limit
+}
+
+func (b *Brain) consolidationBatchLimitAtLeast(stageMaximum, minimum int) int {
+	limit := b.consolidationBatchLimit(stageMaximum)
+	if limit < minimum {
+		return minimum
+	}
+	return limit
+}
+
 func validateContent(content string) error {
 	if content == "" {
 		return ErrEmptyContent
