@@ -217,7 +217,7 @@ func (b *Brain) ConsolidateByID(ctx context.Context, nsID int64) (ConsolidationR
 // --- Stage 1: Episodes -> Facts ---
 
 func (b *Brain) consolidateEpisodesToFacts(ctx context.Context, nsID int64, cp *models.ConsolidationProgress) (created, deduped, read, llmCalls, contradictionsFound, contradictionsAutoResolved int, errs []string) {
-	sql, args, err := b.queries.FetchEpisodes(nsID, cp.LastEpisodeID, b.config.BatchSize)
+	sql, args, err := b.queries.FetchEpisodes(nsID, cp.LastEpisodeID, b.consolidationBatchLimit(0))
 	if err != nil {
 		errs = append(errs, fmt.Sprintf("build fetch episodes: %v", err))
 		return
@@ -457,7 +457,7 @@ func strPtrOrNull(s string) *string {
 // --- Stage 2: Facts -> Relationships ---
 
 func (b *Brain) consolidateFactsToRelationships(ctx context.Context, nsID int64, cp *models.ConsolidationProgress) (count, llmCalls int, errs []string) {
-	sql, args, err := b.queries.FetchFacts(nsID, cp.LastFactID, 50)
+	sql, args, err := b.queries.FetchFacts(nsID, cp.LastFactID, b.consolidationBatchLimit(50))
 	if err != nil {
 		errs = append(errs, fmt.Sprintf("build fetch facts: %v", err))
 		return
@@ -552,7 +552,8 @@ func (b *Brain) relationshipExists(ctx context.Context, nsID int64, from, relTyp
 // --- Stage 3.5: Facts -> Causal Links ---
 
 func (b *Brain) consolidateFactsToCausalLinks(ctx context.Context, nsID int64, cp *models.ConsolidationProgress) (count, llmCalls int, errs []string) {
-	sql, args, err := b.queries.FetchFacts(nsID, cp.LastCausalFactID, 30)
+	causalBatchLimit := b.consolidationBatchLimitAtLeast(30, 2)
+	sql, args, err := b.queries.FetchFacts(nsID, cp.LastCausalFactID, causalBatchLimit)
 	if err != nil {
 		errs = append(errs, fmt.Sprintf("build fetch facts for causal: %v", err))
 		return
@@ -604,7 +605,7 @@ func (b *Brain) consolidateFactsToCausalLinks(ctx context.Context, nsID int64, c
 
 func (b *Brain) consolidateToPatterns(ctx context.Context, nsID int64, cp *models.ConsolidationProgress) (count, llmCalls int, errs []string) {
 	// Fetch new facts since last pattern extraction
-	factSQL, factArgs, err := b.queries.FetchFacts(nsID, cp.LastPatternFactID, 30)
+	factSQL, factArgs, err := b.queries.FetchFacts(nsID, cp.LastPatternFactID, b.consolidationBatchLimit(30))
 	if err != nil {
 		errs = append(errs, fmt.Sprintf("build fetch facts for patterns: %v", err))
 		return
@@ -636,7 +637,7 @@ func (b *Brain) consolidateToPatterns(ctx context.Context, nsID int64, cp *model
 	}
 
 	// Fetch new relationships since last pattern extraction
-	relSQL, relArgs, err := b.queries.FetchRelationships(nsID, cp.LastPatternRelID, 50)
+	relSQL, relArgs, err := b.queries.FetchRelationships(nsID, cp.LastPatternRelID, b.consolidationBatchLimit(50))
 	if err != nil {
 		errs = append(errs, fmt.Sprintf("build fetch rels for patterns: %v", err))
 		return
