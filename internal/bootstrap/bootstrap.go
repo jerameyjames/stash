@@ -84,6 +84,11 @@ func New(ctx context.Context) (*Context, error) {
 		ExpiryThreshold:                cfg.ExpiryThreshold,
 		HypothesisAutoConfirmThreshold: cfg.HypothesisAutoConfirmThreshold,
 		HypothesisAutoRejectThreshold:  cfg.HypothesisAutoRejectThreshold,
+		RetrievalLearningEnabled:       cfg.RetrievalLearningEnabled,
+		RetrievalOverfetchFactor:       cfg.RetrievalOverfetchFactor,
+		RetrievalUtilityWeight:         cfg.RetrievalUtilityWeight,
+		RetrievalMaxUtilityDelta:       cfg.RetrievalMaxUtilityDelta,
+		RecallHistoryRetention:         cfg.RecallHistoryRetention,
 	})
 	if err != nil {
 		pool.Close()
@@ -150,9 +155,24 @@ func buildEmbedder(cfg *config.Config) (embedder.Embedder, error) {
 }
 
 func buildReasoner(cfg *config.Config) (reasoner.Reasoner, error) {
-	return reasoner.NewOpenAI(
-		cfg.OpenAIBaseURL,
-		cfg.OpenAIAPIKey,
+	baseURL := cfg.ReasonerBaseURL
+	if baseURL == "" {
+		baseURL = cfg.OpenAIBaseURL
+	}
+	apiKey := cfg.ReasonerAPIKey
+	if apiKey == "" {
+		apiKey = cfg.OpenAIAPIKey
+	}
+	return reasoner.NewOpenAIWithConfig(
+		baseURL,
+		apiKey,
 		cfg.ReasonerModel,
+		reasoner.OpenAIConfig{
+			MaxTokens:           cfg.ReasonerMaxTokens,
+			MaxRetries:          cfg.ReasonerMaxRetries,
+			RateLimitCooldown:   cfg.ReasonerRateLimitCooldown,
+			PaymentCooldown:     cfg.ReasonerPaymentCooldown,
+			ServerErrorCooldown: cfg.ReasonerServerErrorCooldown,
+		},
 	)
 }

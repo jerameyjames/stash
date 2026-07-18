@@ -100,10 +100,12 @@ func newMCPServer(bc *bootstrap.Context) *server.MCPServer {
 		mcp.WithString("query", mcp.Description(render("recall_query")), mcp.Required()),
 		mcp.WithString("namespaces", mcp.Description(render("recall_namespaces"))),
 		mcp.WithNumber("limit", mcp.Description(render("limit_param")), mcp.DefaultNumber(10)),
+		mcp.WithBoolean("learn", mcp.Description(render("recall_learn")), mcp.DefaultBool(true)),
 	), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		query := request.GetString("query", "")
 		nsRaw := request.GetString("namespaces", "/")
 		limit := request.GetInt("limit", 10)
+		learn := request.GetBool("learn", true)
 
 		var namespaces []string
 		for _, ns := range strings.Split(nsRaw, ",") {
@@ -112,11 +114,39 @@ func newMCPServer(bc *bootstrap.Context) *server.MCPServer {
 			}
 		}
 
-		results, err := bc.Brain.Recall(ctx, namespaces, query, limit)
+		results, err := bc.Brain.RecallWithOptions(ctx, namespaces, query, limit, brain.RecallOptions{
+			RecordOutcome: learn,
+			Caller:        "mcp",
+		})
 		if err != nil {
 			return nil, err
 		}
 		b, _ := json.Marshal(results)
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.TextContent{Type: "text", Text: string(b)}}}, nil
+	})
+
+	mcpServer.AddTool(mcp.NewTool("record_recall_feedback",
+		mcp.WithDescription(render("record_recall_feedback_description")),
+		mcp.WithNumber("impression_id", mcp.Description(render("record_recall_feedback_impression_id")), mcp.Required()),
+		mcp.WithString("memory_type", mcp.Description(render("record_recall_feedback_memory_type")), mcp.Required()),
+		mcp.WithNumber("memory_id", mcp.Description(render("record_recall_feedback_memory_id")), mcp.Required()),
+		mcp.WithString("signal", mcp.Description(render("record_recall_feedback_signal")), mcp.Required()),
+		mcp.WithString("idempotency_key", mcp.Description(render("record_recall_feedback_idempotency_key")), mcp.Required()),
+		mcp.WithString("reason", mcp.Description(render("record_recall_feedback_reason"))),
+	), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		result, err := bc.Brain.RecordRecallFeedback(
+			ctx,
+			int64(request.GetInt("impression_id", 0)),
+			request.GetString("memory_type", ""),
+			int64(request.GetInt("memory_id", 0)),
+			request.GetString("signal", ""),
+			request.GetString("idempotency_key", ""),
+			request.GetString("reason", ""),
+		)
+		if err != nil {
+			return nil, err
+		}
+		b, _ := json.Marshal(result)
 		return &mcp.CallToolResult{Content: []mcp.Content{mcp.TextContent{Type: "text", Text: string(b)}}}, nil
 	})
 
@@ -855,6 +885,11 @@ func runConsolidationTicker(ctx context.Context, bc *bootstrap.Context, cmd *cli
 				}
 				log.Printf("Consolidation completed for %s: facts=%d relationships=%d goals_annotated=%d failure_repeats=%d hypotheses_updated=%d",
 					result.Namespace, result.FactsCreated, result.RelationshipsFound, result.GoalsAnnotated, result.FailureRepeatsDetected, result.HypothesesUpdated)
+			}
+			if deleted, err := bc.Brain.PruneRecallHistory(ctx); err != nil {
+				log.Printf("Recall history pruning failed: %v", err)
+			} else if deleted > 0 {
+				log.Printf("Recall history pruning removed %d expired impressions", deleted)
 			}
 		case <-ctx.Done():
 			log.Printf("Background consolidation shutting down")

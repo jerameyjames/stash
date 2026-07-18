@@ -19,11 +19,11 @@ var (
 	ErrFactNotFound      = fmt.Errorf("brain: fact not found")
 	ErrEmptyContent      = fmt.Errorf("brain: content cannot be empty")
 	ErrContentTooLong    = fmt.Errorf("brain: content exceeds maximum length")
-	ErrInvalidPath = fmt.Errorf("brain: namespace path must start with / and contain valid segments (lowercase alphanumeric, hyphens, underscores)")
+	ErrInvalidPath       = fmt.Errorf("brain: namespace path must start with / and contain valid segments (lowercase alphanumeric, hyphens, underscores)")
 
-	pathSegmentRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+	pathSegmentRe         = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 	ErrNamespacesRequired = fmt.Errorf("brain: at least one namespace is required")
-	maxContentLen = 10000
+	maxContentLen         = 10000
 )
 
 const (
@@ -52,14 +52,19 @@ func (p Pagination) Sanitize() Pagination {
 }
 
 type Config struct {
-	BatchSize           int
-	SimilarityThreshold float64
-	DedupThreshold      float64
-	Window              time.Duration
+	BatchSize                      int
+	SimilarityThreshold            float64
+	DedupThreshold                 float64
+	Window                         time.Duration
 	DecayFactor                    float64
 	ExpiryThreshold                float32
 	HypothesisAutoConfirmThreshold float32
 	HypothesisAutoRejectThreshold  float32
+	RetrievalLearningEnabled       bool
+	RetrievalOverfetchFactor       int
+	RetrievalUtilityWeight         float64
+	RetrievalMaxUtilityDelta       float64
+	RecallHistoryRetention         time.Duration
 }
 
 func DefaultConfig() Config {
@@ -72,6 +77,11 @@ func DefaultConfig() Config {
 		ExpiryThreshold:                0.1,
 		HypothesisAutoConfirmThreshold: 0.9,
 		HypothesisAutoRejectThreshold:  0.9,
+		RetrievalLearningEnabled:       false,
+		RetrievalOverfetchFactor:       3,
+		RetrievalUtilityWeight:         0.08,
+		RetrievalMaxUtilityDelta:       0.10,
+		RecallHistoryRetention:         90 * 24 * time.Hour,
 	}
 }
 
@@ -95,6 +105,18 @@ func New(pool *pgxpool.Pool, e embedder.Embedder, r reasoner.Reasoner, q *querie
 	}
 	if q == nil {
 		return nil, fmt.Errorf("brain: queries is required")
+	}
+	if cfg.RetrievalOverfetchFactor <= 0 {
+		cfg.RetrievalOverfetchFactor = 3
+	}
+	if cfg.RetrievalUtilityWeight < 0 || cfg.RetrievalUtilityWeight > 1 {
+		return nil, fmt.Errorf("brain: retrieval utility weight must be between 0 and 1")
+	}
+	if cfg.RetrievalMaxUtilityDelta < 0 || cfg.RetrievalMaxUtilityDelta > 1 {
+		return nil, fmt.Errorf("brain: retrieval max utility delta must be between 0 and 1")
+	}
+	if cfg.RecallHistoryRetention <= 0 {
+		cfg.RecallHistoryRetention = 90 * 24 * time.Hour
 	}
 	return &Brain{
 		pool:     pool,
