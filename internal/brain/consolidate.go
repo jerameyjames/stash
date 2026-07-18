@@ -11,6 +11,8 @@ import (
 	"github.com/pgvector/pgvector-go"
 )
 
+var ErrConsolidationInProgress = fmt.Errorf("brain: consolidation already in progress for namespace")
+
 // ConsolidationResult describes the outcome of a consolidation run.
 type ConsolidationResult struct {
 	Namespace                  string        `json:"namespace"`
@@ -61,6 +63,30 @@ func (b *Brain) Consolidate(ctx context.Context, namespaceSlug string) (Consolid
 func (b *Brain) ConsolidateByID(ctx context.Context, nsID int64) (ConsolidationResult, error) {
 	start := time.Now()
 
+	// A session-level PostgreSQL advisory lock prevents the background ticker
+	// and a manual MCP call (or a second replica) from consolidating the same
+	// namespace concurrently. Holding the acquired connection is required for
+	// the lifetime of a session advisory lock.
+	lockConn, err := b.pool.Acquire(ctx)
+	if err != nil {
+		return ConsolidationResult{}, fmt.Errorf("acquire consolidation lock connection: %w", err)
+	}
+	var locked bool
+	if err := lockConn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", nsID).Scan(&locked); err != nil {
+		lockConn.Release()
+		return ConsolidationResult{}, fmt.Errorf("acquire consolidation advisory lock: %w", err)
+	}
+	if !locked {
+		lockConn.Release()
+		return ConsolidationResult{}, ErrConsolidationInProgress
+	}
+	defer func() {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, _ = lockConn.Exec(unlockCtx, "SELECT pg_advisory_unlock($1)", nsID)
+		lockConn.Release()
+	}()
+
 	var namespaceSlug string
 	_ = b.pool.QueryRow(ctx, "SELECT slug FROM namespaces WHERE id = $1", nsID).Scan(&namespaceSlug)
 
@@ -71,8 +97,23 @@ func (b *Brain) ConsolidateByID(ctx context.Context, nsID int64) (ConsolidationR
 		return result, fmt.Errorf("get progress: %w", err)
 	}
 
+	reasonerBlocked := false
+	reasonerReady := func() bool {
+		if reasonerBlocked {
+			return false
+		}
+		if availability, ok := b.reasoner.(interface{ Availability() error }); ok {
+			if err := availability.Availability(); err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("reasoner circuit open: %v", err))
+				reasonerBlocked = true
+				return false
+			}
+		}
+		return true
+	}
+
 	// Stage 1: Episodes -> Facts (+ Stage 4: Contradiction detection)
-	if ctx.Err() == nil {
+	if ctx.Err() == nil && reasonerReady() {
 		factsCreated, factsDeduped, episodesRead, llmCalls, contFound, contAuto, errs := b.consolidateEpisodesToFacts(ctx, nsID, cp)
 		result.FactsCreated = factsCreated
 		result.FactsDeduplicated = factsDeduped
@@ -84,7 +125,7 @@ func (b *Brain) ConsolidateByID(ctx context.Context, nsID int64) (ConsolidationR
 	}
 
 	// Stage 2: Facts -> Relationships
-	if ctx.Err() == nil {
+	if ctx.Err() == nil && reasonerReady() {
 		relCount, llmCalls, errs := b.consolidateFactsToRelationships(ctx, nsID, cp)
 		result.RelationshipsFound = relCount
 		result.LLMCalls += llmCalls
@@ -92,7 +133,7 @@ func (b *Brain) ConsolidateByID(ctx context.Context, nsID int64) (ConsolidationR
 	}
 
 	// Stage 3.5: Facts -> Causal Links
-	if ctx.Err() == nil {
+	if ctx.Err() == nil && reasonerReady() {
 		causalCount, llmCalls, errs := b.consolidateFactsToCausalLinks(ctx, nsID, cp)
 		result.CausalLinksFound = causalCount
 		result.LLMCalls += llmCalls
@@ -100,7 +141,7 @@ func (b *Brain) ConsolidateByID(ctx context.Context, nsID int64) (ConsolidationR
 	}
 
 	// Stage 6: Goal Progress Inference
-	if ctx.Err() == nil {
+	if ctx.Err() == nil && reasonerReady() {
 		annotated, suggestedComplete, llmCalls, errs := b.consolidateGoalProgress(ctx, nsID, cp)
 		result.GoalsAnnotated = annotated
 		result.GoalsSuggestedComplete = suggestedComplete
@@ -109,7 +150,7 @@ func (b *Brain) ConsolidateByID(ctx context.Context, nsID int64) (ConsolidationR
 	}
 
 	// Stage 7: Failure Pattern Detection
-	if ctx.Err() == nil {
+	if ctx.Err() == nil && reasonerReady() {
 		repeats, patterns, llmCalls, errs := b.consolidateFailurePatterns(ctx, nsID, cp)
 		result.FailureRepeatsDetected = repeats
 		result.FailurePatternsFound = patterns
@@ -118,7 +159,7 @@ func (b *Brain) ConsolidateByID(ctx context.Context, nsID int64) (ConsolidationR
 	}
 
 	// Stage 3: Facts + Relationships -> Patterns
-	if ctx.Err() == nil {
+	if ctx.Err() == nil && reasonerReady() {
 		patCount, llmCalls, errs := b.consolidateToPatterns(ctx, nsID, cp)
 		result.PatternsFound = patCount
 		result.LLMCalls += llmCalls
@@ -126,7 +167,7 @@ func (b *Brain) ConsolidateByID(ctx context.Context, nsID int64) (ConsolidationR
 	}
 
 	// Stage 8: Hypothesis Evidence Scanning
-	if ctx.Err() == nil {
+	if ctx.Err() == nil && reasonerReady() {
 		autoConfirmed, autoRejected, updated, llmCalls, errs := b.consolidateHypothesisEvidence(ctx, nsID, cp)
 		result.HypothesesAutoConfirmed = autoConfirmed
 		result.HypothesesAutoRejected = autoRejected
@@ -366,6 +407,7 @@ func (b *Brain) factExistsByVector(ctx context.Context, nsID int64, vec []float3
 	err := b.pool.QueryRow(ctx,
 		`SELECT id, 1 - (embedding <=> $2) AS score FROM facts
 		 WHERE namespace_id = $1 AND deleted_at IS NULL AND embedding IS NOT NULL
+		 AND (valid_until IS NULL OR valid_until > now())
 		 ORDER BY embedding <=> $2 LIMIT 1`,
 		nsID, pgvector.NewVector(vec),
 	).Scan(&id, &score)
@@ -510,7 +552,7 @@ func (b *Brain) relationshipExists(ctx context.Context, nsID int64, from, relTyp
 // --- Stage 3.5: Facts -> Causal Links ---
 
 func (b *Brain) consolidateFactsToCausalLinks(ctx context.Context, nsID int64, cp *models.ConsolidationProgress) (count, llmCalls int, errs []string) {
-	sql, args, err := b.queries.FetchFacts(nsID, cp.LastFactID, 30)
+	sql, args, err := b.queries.FetchFacts(nsID, cp.LastCausalFactID, 30)
 	if err != nil {
 		errs = append(errs, fmt.Sprintf("build fetch facts for causal: %v", err))
 		return
@@ -541,10 +583,20 @@ func (b *Brain) consolidateFactsToCausalLinks(ctx context.Context, nsID int64, c
 		return
 	}
 
+	var maxID int64
+	for _, fact := range facts {
+		if fact.ID > maxID {
+			maxID = fact.ID
+		}
+	}
+
 	llmCalls++
 	found, detectErrs := b.DetectCausalLinks(ctx, nsID, facts)
 	count = found
 	errs = append(errs, detectErrs...)
+	if len(errs) == 0 && maxID > cp.LastCausalFactID {
+		cp.LastCausalFactID = maxID
+	}
 	return
 }
 

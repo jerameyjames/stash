@@ -125,7 +125,7 @@ func (b *Brain) consolidateHypothesisEvidence(ctx context.Context, nsID int64, c
 			maxFactID = f.ID
 		}
 	}
-	if maxFactID > cp.LastHypothesisFactID {
+	if len(errs) == 0 && maxFactID > cp.LastHypothesisFactID {
 		cp.LastHypothesisFactID = maxFactID
 	}
 
